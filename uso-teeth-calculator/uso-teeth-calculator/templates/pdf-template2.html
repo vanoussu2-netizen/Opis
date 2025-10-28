@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Доп. отчёт — {{patient_name}}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --brand:#0b5ed7;
+    --text:#1f2328;
+    --muted:#555;
+    --line:#e5e5e5;
+  }
+  html, body { margin:0; padding:0; background:#fff; color:var(--text);
+    font-family: Arial, Helvetica, sans-serif; font-size:12pt; line-height:1.35; }
+  .wrap { padding: 36pt 32pt; }
+
+  /* Шапка */
+  .hdr {
+    display:grid; grid-template-columns: 120px 1fr;
+    gap:12pt; align-items:center; border-bottom:2px solid var(--line); padding-bottom:10pt;
+  }
+  .hdr .logo img { max-width:120px; height:auto; display:block; }
+  .clinic-title { font-size:17pt; font-weight:800; letter-spacing:.2px; color:var(--brand); }
+  .clinic-dept { font-size:11pt; margin-top:2pt; color:var(--muted); }
+  .clinic-row { font-size:10.5pt; color:var(--muted); margin-top:2pt; line-height:1.35; }
+  .meta { text-align:right; font-size:10.5pt; color:var(--muted); margin-top:6pt; white-space:nowrap; }
+
+  h1 { font-size:15pt; margin:14pt 0 8pt; text-align:center; color:#0b5ed7; }
+  .subtitle { text-align:center; margin:2pt 0 10pt; color:#6c757d; }
+
+  .section { margin: 12pt 0; }
+  .section h3 { margin:8pt 0 6pt; font-size:13pt; }
+  .note { background:#f8fbff; border:1px solid #d7e7ff; border-radius:6px; padding:8pt 10pt; font-size:10.5pt; color:#333; }
+
+  .cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:6pt; }
+  .card { border:1px solid #ddd; border-radius:6px; padding:8pt; }
+
+  .caption { text-align:center; font-size:10pt; color:#666; margin-top:4pt; }
+  img { page-break-inside: avoid; max-width:100%; height:auto; }
+
+  .footer { margin-top:14pt; font-size:9pt; color:#555; line-height:1.4; border-top:1px solid var(--line); padding-top:8pt; }
+  .sign { margin-top:8pt; font-size:10pt; }
+
+  h1,h2,h3,h4,p,ul,ol,table,div.card,div.section{ page-break-inside: avoid; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Шапка -->
+  <div class="hdr">
+    <div class="logo">
+      <img src="{{logo_url}}" alt="Logo">
+    </div>
+    <div class="info">
+      <div class="clinic-title">Дополнительный отчёт</div>
+      <div class="clinic-dept">Стоматология</div>
+      <div class="clinic-row">Лицензия: {{license}}</div>
+      <div class="clinic-row">Адреса: {{addr_heihe}} · {{addr_suif}}</div>
+      <div class="clinic-row">Тел.: {{phone1}} / {{phone2}} · E-mail: {{email}} · Сайт: {{site}}</div>
+      <div class="meta">Дата: {{calc_date}} · Пациент: {{patient_name}} ({{patient_phone_masked}})</div>
+    </div>
+  </div>
+
+  <h1>Индивидуальный план лечения</h1>
+  <div class="subtitle">предварительная оценка объёмов и стоимости в рублях</div>
+
+  <!-- Секции вариантов вставляются сюда -->
+  {{variants_content}}
+
+  <div class="section note">
+    Сроки и этапы работ могут корректироваться по итогам очной диагностики и санации полости рта.
+    Пожалуйста, задавайте вопросы — мы поможем с организацией поездки и подскажем оптимальные сроки.
+  </div>
+
+  <div class="footer">
+    {{disclaimer}}
+    <div class="sign">Контакт‑центр: {{phone1}} · {{site}}</div>
+  </div>
+
+</div>
+</body>
+</html>
