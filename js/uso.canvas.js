@@ -1407,14 +1407,16 @@
 
     nav.innerHTML = '';
     images.forEach((img, idx) => {
-      const btn = document.createElement('button');
-      btn.className = 'uso-image-btn ' + (idx === activeImageIndex ? 'active' : '');
-      btn.type = 'button';
-      btn.textContent = img.description;
-      btn.onclick = () => switchImage(idx);
-      nav.appendChild(btn);
+      const tab = document.createElement('div');
+      tab.className = 'tab' + (idx === activeImageIndex ? ' active' : '');
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-selected', idx === activeImageIndex ? 'true' : 'false');
+      tab.setAttribute('data-img-id', idx);
+      tab.textContent = img.description;
+      tab.onclick = () => switchImage(idx);
+      nav.appendChild(tab);
     });
-    
+
     DEBUG.log('[USO_CANVAS] Navigation updated, images:', images.length);
   }
 

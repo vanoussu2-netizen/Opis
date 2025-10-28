@@ -258,8 +258,10 @@ class USO_Teeth_Calc_Plugin {
       <!-- ✅ НОВОЕ: Информация о режиме -->
       <div id="uso-mode-info" style="margin-bottom: 12px;"></div>
 
-      <!-- ✅ НОВОЕ: Навигация по снимкам -->
-      <div id="uso-images-nav" style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;"></div>
+      <!-- ✅ НОВОЕ: Навигация по снимкам (вкладки) -->
+      <div class="variants" role="tablist" aria-label="<?php esc_attr_e('Снимки', 'uso-teeth-calculator'); ?>" style="margin-bottom:12px;">
+        <div id="uso-images-nav" class="variants-bar"></div>
+      </div>
 
       <div class="img-tools">
         <div class="variants" role="tablist" aria-label="<?php esc_attr_e('Варианты', 'uso-teeth-calculator'); ?>">

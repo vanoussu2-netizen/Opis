@@ -252,31 +252,4 @@ body.uso-fs-active #uso-canvas-container{
 }
 
 /* ✅ НОВОЕ: Навигация по снимкам */
-#uso-images-nav {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-}
-
-#uso-images-nav .uso-image-btn {
-    padding: 6px 12px;
-    border: 1px solid #ccc;
-    background: #fff;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 13px;
-    transition: all 0.2s ease;
-}
-
-#uso-images-nav .uso-image-btn:hover {
-    border-color: #2271b1;
-    background: #f0f7ff;
-}
-
-#uso-images-nav .uso-image-btn.active {
-    background: #2271b1;
-    color: #fff;
-    border-color: #1b5f99;
-    font-weight: 600;
-}
+/* Стили для навигации по снимкам удалены - теперь используются общие стили .variants и .tab */
