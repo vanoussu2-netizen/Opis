@@ -500,25 +500,31 @@
     const maxWidth = pageWidth - margin * 2;
     const maxHeight = pageHeight - margin * 2 - 50;
 
+    let pageAdded = false;
+
     for (let idx = 0; idx < allImages.length; idx++) {
       const img = allImages[idx];
-      
+
       if (!img || !img.imageUrl) {
-        console.warn('[USO_EXPORT] Image', idx + 1, 'has no imageUrl');
+        console.warn('[USO_EXPORT] Image', idx + 1, 'has no imageUrl - skipping');
         continue;
       }
 
       try {
         DEBUG.log('[USO_EXPORT] Adding image', idx + 1, 'to PDF');
-        
-        if (idx > 0) pdf.addPage();
-        
+
+        // ✅ ИСПРАВЛЕНИЕ: Сначала загружаем изображение
         const imgElement = await loadImageAsync(img.imageUrl);
-        
+
+        if (!imgElement || !imgElement.width || !imgElement.height) {
+          console.warn('[USO_EXPORT] Image', idx + 1, 'failed to load or has invalid dimensions - skipping');
+          continue;
+        }
+
         const imgRatio = imgElement.width / imgElement.height;
         let finalWidth = maxWidth;
         let finalHeight = finalWidth / imgRatio;
-        
+
         if (finalHeight > maxHeight) {
           finalHeight = maxHeight;
           finalWidth = finalHeight * imgRatio;
@@ -526,7 +532,14 @@
 
         const leftOffset = margin + (maxWidth - finalWidth) / 2;
         let currentY = margin;
-        
+
+        // ✅ ИСПРАВЛЕНИЕ: Добавляем страницу только после успешной загрузки изображения
+        if (pageAdded) {
+          pdf.addPage();
+          DEBUG.log('[USO_EXPORT] Added new page for image', idx + 1);
+        }
+        pageAdded = true;
+
         const captionCanvas = document.createElement('canvas');
         captionCanvas.width = pageWidth;
         captionCanvas.height = 40;
@@ -537,22 +550,24 @@
         captionCtx.font = 'bold 14px Arial';
         const marker = (idx + 1) === 1 ? ' ✓' : '';
         captionCtx.fillText('Снимок ' + (idx + 1) + marker, margin, 25);
-        
+
         if ((idx + 1) === 1) {
           captionCtx.fillStyle = '#666';
           captionCtx.font = '10px Arial';
           captionCtx.fillText('(использован для расчётов)', margin, 38);
         }
-        
+
         const captionImg = captionCanvas.toDataURL('image/jpeg', 0.95);
         pdf.addImage(captionImg, 'JPEG', 0, currentY, pageWidth, 40);
         currentY += 50;
-        
+
         pdf.addImage(img.imageUrl, 'PNG', leftOffset, currentY, finalWidth, finalHeight);
 
         DEBUG.log('[USO_EXPORT] Image', idx + 1, 'added successfully');
       } catch(err) {
         console.error('[USO_EXPORT] Error adding image', idx + 1, ':', err);
+        // ✅ Пропускаем это изображение, страница не создана
+        continue;
       }
     }
 

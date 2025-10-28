@@ -2264,26 +2264,38 @@ async function renderImageWithMarkersToDataUrl(imgIndex) {
 
   async function getAllImagesForExport() {
     DEBUG.log('[USO_CANVAS] getAllImagesForExport() called, total images:', images.length);
-    
+
     const result = [];
 
     try {
       for (let i = 0; i < images.length; i++) {
         DEBUG.log('[USO_CANVAS] Processing image', i + 1, 'of', images.length);
-        
+
+        // ✅ ИСПРАВЛЕНИЕ: Пропускаем изображения без bgImg (не загружены)
+        if (!images[i].bgImg || !images[i].imageUrl) {
+          DEBUG.log('[USO_CANVAS] Skipping image', i + 1, '- not loaded');
+          continue;
+        }
+
         const imageUrlWithMarkers = await renderImageWithMarkersToDataUrl(i);
-        
+
+        // ✅ ИСПРАВЛЕНИЕ: Пропускаем, если рендеринг не удался
+        if (!imageUrlWithMarkers) {
+          console.warn('[USO_CANVAS] Failed to render image', i + 1, '- skipping');
+          continue;
+        }
+
         result.push({
           index: i + 1,
           description: images[i].description,
           jaw: images[i].jaw,
-          imageUrl: imageUrlWithMarkers || images[i].imageUrl,
+          imageUrl: imageUrlWithMarkers,  // ✅ Только отрендеренное изображение
           serialized: images[i].serialized,
           workMode: workMode,
           canMark: images[i].canMark
         });
 
-        DEBUG.log('[USO_CANVAS] Image', i + 1, 'processed, has markers:', !!imageUrlWithMarkers);
+        DEBUG.log('[USO_CANVAS] Image', i + 1, 'added to export');
       }
 
     } catch(err) {

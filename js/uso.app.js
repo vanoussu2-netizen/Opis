@@ -202,19 +202,17 @@
 
         const allImages = CANVAS && CANVAS.getAllImages ? CANVAS.getAllImages() : [];
         DEBUG.log('[USO] Total images now:', allImages.length);
-        
-        if (allImages.length === 1) {
+
+        // ✅ ИСПРАВЛЕНИЕ: Сначала переключаемся на изображение (это вызовет updateImageNavigation внутри)
+        if (allImages.length >= 1) {
+          const targetIndex = allImages.length - 1;  // Переключаемся на последний добавленный
           if (CANVAS && CANVAS.switchImage) {
-            CANVAS.switchImage(0);
-            DEBUG.log('[USO] Switched to first image');
+            CANVAS.switchImage(targetIndex);
+            DEBUG.log('[USO] Switched to image:', targetIndex);
           }
         }
 
-        if (CANVAS && CANVAS.updateImageNavigation) {
-          CANVAS.updateImageNavigation();
-          DEBUG.log('[USO] Image navigation updated');
-        }
-        
+        // ✅ НЕ нужно вызывать updateImageNavigation отдельно - switchImage делает это
         recompute();
         DEBUG.log('[USO] Recompute triggered');
 
