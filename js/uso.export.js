@@ -342,6 +342,193 @@
     return out;
   }
 
+  /**
+   * Добавляет текст-заглушку на пустой canvas (для пустых страниц PDF)
+   * @param {HTMLCanvasElement} canvas - Canvas для добавления текста
+   * @param {number} pageNum - Номер страницы
+   */
+  function addPlaceholderTextToCanvas(canvas, pageNum) {
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+
+    // Рисуем белый фон
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+
+    // Центрируем текст
+    const centerX = w / 2;
+    const centerY = h / 2;
+
+    // Рисуем номер страницы
+    ctx.fillStyle = '#cccccc';
+    ctx.font = 'bold 28px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Страница ' + pageNum, centerX, centerY - 20);
+
+    // Рисуем пояснение
+    ctx.font = '18px Arial';
+    ctx.fillStyle = '#999999';
+    ctx.fillText('(пустая область отчета)', centerX, centerY + 25);
+
+    DEBUG.log('[USO_EXPORT] Added placeholder text to canvas, page:', pageNum);
+  }
+
+  /**
+   * Обрезает белый хвост снизу canvas
+   * @param {HTMLCanvasElement} canvas - Исходный canvas
+   * @param {number} threshold - Порог белизны (0.0 - 1.0)
+   * @returns {HTMLCanvasElement} - Обрезанный canvas
+   */
+  function trimCanvasBottom(canvas, threshold) {
+    threshold = threshold || 0.98;
+    if (!canvas) return canvas;
+
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+
+    if (h === 0 || w === 0) return canvas;
+
+    try {
+      const imageData = ctx.getImageData(0, 0, w, h);
+      const data = imageData.data;
+
+      let lastContentY = h - 1;
+      const whiteThreshold = 255 * threshold;
+
+      DEBUG.log('[USO_EXPORT] Trimming canvas, original height:', h);
+
+      // Сканируем снизу вверх
+      for (let y = h - 1; y >= 0; y--) {
+        let hasContent = false;
+
+        // Проверяем строку пикселей (каждый 5-й пиксель для производительности)
+        for (let x = 0; x < w; x += 5) {
+          const idx = (y * w + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          const a = data[idx + 3];
+
+          // Если пиксель не белый (с учетом альфа-канала)
+          if (a > 10 && (r < whiteThreshold || g < whiteThreshold || b < whiteThreshold)) {
+            hasContent = true;
+            break;
+          }
+        }
+
+        if (hasContent) {
+          lastContentY = y;
+          break;
+        }
+      }
+
+      // Добавляем небольшой отступ снизу (50px)
+      const trimmedHeight = Math.min(h, lastContentY + 50);
+
+      // Если почти ничего не обрезали - возвращаем оригинал
+      if (trimmedHeight >= h - 20) {
+        DEBUG.log('[USO_EXPORT] No significant trimming needed');
+        return canvas;
+      }
+
+      DEBUG.log('[USO_EXPORT] Trimmed canvas from', h, 'to', trimmedHeight, 'px');
+
+      // Создаем новый canvas с обрезанной высотой
+      const trimmed = document.createElement('canvas');
+      trimmed.width = w;
+      trimmed.height = trimmedHeight;
+      const trimmedCtx = trimmed.getContext('2d');
+
+      // Заполняем белым
+      trimmedCtx.fillStyle = '#ffffff';
+      trimmedCtx.fillRect(0, 0, w, trimmedHeight);
+
+      // Копируем содержимое
+      trimmedCtx.drawImage(canvas, 0, 0, w, trimmedHeight, 0, 0, w, trimmedHeight);
+
+      return trimmed;
+
+    } catch(e) {
+      DEBUG.error('[USO_EXPORT] Error trimming canvas:', e);
+      return canvas;
+    }
+  }
+
+  /**
+   * Проверяет, является ли canvas пустым (белым)
+   * @param {HTMLCanvasElement} canvas - Canvas для проверки
+   * @param {number} threshold - Порог белизны (0.0 - 1.0)
+   * @returns {boolean} - true если canvas пустой
+   */
+  function isCanvasBlank(canvas, threshold) {
+    threshold = threshold || 0.98;
+    if (!canvas) return true;
+
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+
+    if (w === 0 || h === 0) return true;
+
+    try {
+      const imageData = ctx.getImageData(0, 0, w, h);
+      const data = imageData.data;
+      const whiteThreshold = 255 * threshold;
+
+      // Проверяем случайные точки для производительности
+      const totalPixels = data.length / 4;
+      const sampleSize = Math.min(10000, totalPixels);
+      const step = Math.floor(totalPixels / sampleSize);
+
+      for (let i = 0; i < totalPixels; i += step) {
+        const idx = i * 4;
+        const r = data[idx];
+        const g = data[idx + 1];
+        const b = data[idx + 2];
+        const a = data[idx + 3];
+
+        // Если нашли непрозрачный небелый пиксель
+        if (a > 10 && (r < whiteThreshold || g < whiteThreshold || b < whiteThreshold)) {
+          return false;
+        }
+      }
+
+      return true;
+
+    } catch(e) {
+      DEBUG.error('[USO_EXPORT] Error checking canvas blank:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Находит безопасную точку разреза для разбиения canvas на страницы
+   * @param {HTMLCanvasElement} canvas - Canvas для анализа
+   * @param {number} startY - Начальная Y координата
+   * @param {number} approxHeight - Приблизительная высота страницы
+   * @returns {number} - Y координата для разреза
+   */
+  function findSafeCutY(canvas, startY, approxHeight) {
+    if (!canvas) return startY + approxHeight;
+
+    const h = canvas.height;
+    let targetY = Math.min(startY + approxHeight, h);
+
+    // Если уже в конце - возвращаем как есть
+    if (targetY >= h - 10) return h;
+
+    // Простая реализация - возвращаем целевую координату
+    // В продакшене можно добавить более умную логику поиска
+    return targetY;
+  }
+
   // ✅ ЗАМЕНЕНО: улучшенная версия buildPDFBlob (обрезает белый хвост, режет без пустых страниц и удаляет дефолтную пустую при необходимости)
   async function buildPDFBlob(variantsSectionsHtml, filenameBase, reportType, allImages = []){
     DEBUG.log('[USO_EXPORT] buildPDFBlob started with', allImages.length, 'images');
