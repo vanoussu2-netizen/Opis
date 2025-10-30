@@ -120,20 +120,24 @@
     const data = imgData.data;
 
     let whitePixels = 0;
-    const totalPixels = checkW * checkH;
+    let sampledPixels = 0;
 
-    for (let i = 0; i < data.length; i += 4) {
+    // ✅ ОПТИМИЗАЦИЯ: Проверяем каждый 10-й пиксель вместо всех (в 10 раз быстрее!)
+    // Было: 12+ миллионов итераций для большого canvas
+    // Стало: ~1.2 миллиона итераций (10x ускорение)
+    for (let i = 0; i < data.length; i += 40) { // 40 = 4 байта * 10 пикселей
       const r = data[i];
       const g = data[i + 1];
       const b = data[i + 2];
 
-      // ✅ Более строгая проверка: считаем почти белым если RGB > 250 (было 240)
+      // ✅ Более строгая проверка: считаем почти белым если RGB > 250
       if (r > 250 && g > 250 && b > 250) {
         whitePixels++;
       }
+      sampledPixels++;
     }
 
-    const whiteRatio = whitePixels / totalPixels;
+    const whiteRatio = whitePixels / sampledPixels;
 
     // ✅ Логирование для отладки
     if (DEBUG && DEBUG.log) {
@@ -193,42 +197,7 @@
     DEBUG.log('[USO_EXPORT] Added placeholder text to blank page', pageNumber);
   }
 
-  // ✅ Новое: обрезка белого хвоста снизу исходного canvas
-  function trimCanvasBottom(canvas, threshold = 0.995) {
-    const w = canvas.width, h = canvas.height;
-    const ctx = canvas.getContext('2d');
-    const band = Math.min(8, h);
-    let lastContentY = h - 1;
-  
-    // Идём снизу вверх, ищем первую "чернильную" полоску
-    for (let y = h - 1; y >= 0; y -= band) {
-      const sliceH = Math.min(band, y + 1);
-      const img = ctx.getImageData(0, y - sliceH + 1, w, sliceH);
-      const data = img.data;
-      let white = 0;
-      const total = w * sliceH;
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i+1], b = data[i+2];
-        if (r > 250 && g > 250 && b > 250) white++;
-      }
-      const ratio = white / total;
-      if (ratio < threshold) { // нашли содержимое
-        lastContentY = y;
-        break;
-      }
-    }
-  
-    const newH = Math.max(1, lastContentY + 1);
-    if (newH < h) {
-      const trimmed = document.createElement('canvas');
-      trimmed.width = w;
-      trimmed.height = newH;
-      const tctx = trimmed.getContext('2d');
-      tctx.drawImage(canvas, 0, 0);
-      return trimmed;
-    }
-    return canvas;
-  }
+  // ✅ УДАЛЕН ДУБЛИКАТ: Используется расширенная версия trimCanvasBottom ниже
 
   // ✅ ИСПРАВЛЕННАЯ функция поиска безопасного места разреза
   function findSafeCutY(canvas, startY, approxH){
@@ -273,15 +242,14 @@
   async function buildPDFHtml(variantsSectionsHtml, reportType){
     const name = $('#uso-patient-name').val() || '';
     const rawPhone = $('#uso-patient-phone').val() || '';
-    const maskPhone = function(s){ 
-      const d=String(s||'').replace(/\D/g,''); 
-      return d.length<=6 ? '***'+d : '***'+d.slice(-6); 
-    };
+
+    // ✅ ИСПРАВЛЕНО: Используем USO.util.maskPhone вместо локальной функции
+    const phoneMasked = U.util ? U.util.maskPhone(rawPhone) : '***';
     const nowStr = new Date().toLocaleDateString('ru-RU');
-    const phoneMasked = maskPhone(rawPhone);
     const logoUrl = ASSETS.logo_url || '';
 
-    const esc = function(s){
+    // ✅ ИСПРАВЛЕНО: Используем USO.util.escapeHTML вместо локальной функции
+    const esc = U.util ? U.util.escapeHTML : function(s){
       const div = document.createElement('div');
       div.textContent = String(s || '');
       return div.innerHTML;
@@ -322,65 +290,36 @@
 
     out = out.replace(/Государственная больница\s+You-Ai[^<]*/gi, '');
 
+    // ✅ ИСПРАВЛЕНО: Все пользовательские данные экранируются
     out = out.split('{{patient_name}}').join(esc(name));
     out = out.split('{{patient_phone}}').join(esc(phoneMasked));
     out = out.split('{{patient_phone_masked}}').join(esc(phoneMasked));
     out = out.split('{{calc_date}}').join(esc(nowStr));
-    out = out.split('{{license}}').join(CLINIC.license||'');
-    out = out.split('{{addr_heihe}}').join(CLINIC.addr_heihe||'');
-    out = out.split('{{addr_suif}}').join(CLINIC.addr_suif||'');
-    out = out.split('{{phone1}}').join(CLINIC.phone1||'');
-    out = out.split('{{phone2}}').join(CLINIC.phone2||'');
-    out = out.split('{{email}}').join(CLINIC.email||'');
-    out = out.split('{{site}}').join(CLINIC.site||'');
-    out = out.split('{{disclaimer}}').join(CLINIC.disclaimer||'');
+
+    // ✅ ИСПРАВЛЕНО XSS: Экранируем CLINIC данные (на случай если админ может их менять)
+    out = out.split('{{license}}').join(esc(CLINIC.license||''));
+    out = out.split('{{addr_heihe}}').join(esc(CLINIC.addr_heihe||''));
+    out = out.split('{{addr_suif}}').join(esc(CLINIC.addr_suif||''));
+    out = out.split('{{phone1}}').join(esc(CLINIC.phone1||''));
+    out = out.split('{{phone2}}').join(esc(CLINIC.phone2||''));
+    out = out.split('{{email}}').join(esc(CLINIC.email||''));
+    out = out.split('{{site}}').join(esc(CLINIC.site||''));
+    out = out.split('{{disclaimer}}').join(esc(CLINIC.disclaimer||''));
+
+    // ВНИМАНИЕ: variantsSectionsHtml должен быть экранирован в uso.app.js!
     out = out.split('{{variants_content}}').join(variantsSectionsHtml || '');
-    out = out.split('{{logo_url}}').join(logoUrl || '');
-    out = out.split('{{advertiser}}').join(CLINIC.advertiser || '');
-    out = out.split('{{ogrn}}').join(CLINIC.ogrn || '');
+    out = out.split('{{logo_url}}').join(esc(logoUrl || ''));
+    out = out.split('{{advertiser}}').join(esc(CLINIC.advertiser || ''));
+    out = out.split('{{ogrn}}').join(esc(CLINIC.ogrn || ''));
 
     return out;
   }
 
-  /**
-   * Добавляет текст-заглушку на пустой canvas (для пустых страниц PDF)
-   * @param {HTMLCanvasElement} canvas - Canvas для добавления текста
-   * @param {number} pageNum - Номер страницы
-   */
-  function addPlaceholderTextToCanvas(canvas, pageNum) {
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const w = canvas.width;
-    const h = canvas.height;
-
-    // Рисуем белый фон
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, w, h);
-
-    // Центрируем текст
-    const centerX = w / 2;
-    const centerY = h / 2;
-
-    // Рисуем номер страницы
-    ctx.fillStyle = '#cccccc';
-    ctx.font = 'bold 28px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Страница ' + pageNum, centerX, centerY - 20);
-
-    // Рисуем пояснение
-    ctx.font = '18px Arial';
-    ctx.fillStyle = '#999999';
-    ctx.fillText('(пустая область отчета)', centerX, centerY + 25);
-
-    DEBUG.log('[USO_EXPORT] Added placeholder text to canvas, page:', pageNum);
-  }
+  // ✅ УДАЛЕН ДУБЛИКАТ: addPlaceholderTextToCanvas (использовать версию выше)
+  // ✅ УДАЛЕН ДУБЛИКАТ: trimCanvasBottom (использовать версию ниже)
 
   /**
-   * Обрезает белый хвост снизу canvas
+   * Обрезает белый хвост снизу canvas (расширенная версия)
    * @param {HTMLCanvasElement} canvas - Исходный canvas
    * @param {number} threshold - Порог белизны (0.0 - 1.0)
    * @returns {HTMLCanvasElement} - Обрезанный canvas
@@ -903,36 +842,22 @@
     }
   }
 
-  function htmlToText(html) {
-    const div = document.createElement('div');
-    div.innerHTML = html;
-    
-    div.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
-    div.querySelectorAll('li').forEach(li => {
-      const t = li.textContent.trim();
-      li.replaceWith(document.createTextNode('• ' + t + '\n'));
-    });
-    
-    div.querySelectorAll('img, script, style').forEach(el => el.remove());
-    
-    let text = div.innerText || div.textContent || '';
-    text = text.replace(/\n\s+\n/g, '\n\n');
-    text = text.replace(/[ \t]+/g, ' ');
-    text = text.trim();
-    
-    return text;
-  }
+  // ✅ УДАЛЕН ДУБЛИКАТ: htmlToText (используем USO.util.htmlToText)
 
   function buildTextReport(htmlContent) {
     const name = ($('#uso-patient-name').val() || '').trim();
     const rawPhone = ($('#uso-patient-phone').val() || '').trim();
-    const maskPhone = function(s){ 
-      const d = String(s||'').replace(/\D/g,''); 
-      return d.length <= 6 ? '***'+d : '***'+d.slice(-6); 
-    };
+
+    // ✅ ИСПРАВЛЕНО: Используем USO.util.maskPhone (было 3 копии!)
+    const phoneMasked = U.util ? U.util.maskPhone(rawPhone) : '***';
     const nowStr = new Date().toLocaleDateString('ru-RU');
-    const phoneMasked = maskPhone(rawPhone);
-    
+
+    // ✅ ИСПРАВЛЕНО: Используем USO.util.htmlToText вместо локальной функции
+    const htmlToText = U.util ? U.util.htmlToText : function(h){
+      const d = document.createElement('div');
+      d.textContent = h;
+      return d.textContent;
+    };
     const textContent = htmlToText(htmlContent);
     
     const report = `
