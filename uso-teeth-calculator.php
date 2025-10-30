@@ -176,7 +176,16 @@ class USO_Teeth_Calc_Plugin {
     $ver_js = file_exists($app_js) ? filemtime($app_js) : '1.27.2';
 
     wp_register_script('uso-state',  plugins_url('js/uso.state'.$min_js.'.js', __FILE__),  ['jquery','wp-i18n'], $ver_js, true);
-    wp_register_script('uso-canvas', plugins_url('js/uso.canvas'.$min_js.'.js', __FILE__), ['jquery','fabric-js','exifr','wp-i18n','uso-state'], $ver_js, true);
+
+    // ✅ CANVAS MODULES: Модульная структура для лучшей поддерживаемости
+    wp_register_script('uso-canvas-config', plugins_url('js/uso.canvas.config.js', __FILE__), ['jquery'], $ver_js, true);
+    wp_register_script('uso-canvas-fullscreen', plugins_url('js/uso.canvas.fullscreen.js', __FILE__), ['jquery', 'uso-canvas-config'], $ver_js, true);
+    wp_register_script('uso-canvas-ui', plugins_url('js/uso.canvas.ui.js', __FILE__), ['jquery', 'fabric-js', 'uso-canvas-config'], $ver_js, true);
+    wp_register_script('uso-canvas-interactions', plugins_url('js/uso.canvas.interactions.js', __FILE__), ['jquery', 'fabric-js', 'uso-canvas-config'], $ver_js, true);
+    wp_register_script('uso-canvas-images', plugins_url('js/uso.canvas.images.js', __FILE__), ['fabric-js', 'uso-canvas-config'], $ver_js, true);
+    wp_register_script('uso-canvas-serialization', plugins_url('js/uso.canvas.serialization.js', __FILE__), ['fabric-js', 'uso-canvas-config'], $ver_js, true);
+    wp_register_script('uso-canvas', plugins_url('js/uso.canvas'.$min_js.'.js', __FILE__), ['jquery','fabric-js','exifr','wp-i18n','uso-state','uso-canvas-config','uso-canvas-fullscreen','uso-canvas-ui','uso-canvas-interactions','uso-canvas-images','uso-canvas-serialization'], $ver_js, true);
+
     wp_register_script('uso-calc',   plugins_url('js/uso.calc'.$min_js.'.js', __FILE__),   ['jquery','wp-i18n','uso-state'], $ver_js, true);
     wp_register_script('uso-export', plugins_url('js/uso.export'.$min_js.'.js', __FILE__), ['jquery','html2canvas','jspdf','wp-i18n','uso-state','uso-calc','uso-canvas'], $ver_js, true);
     wp_register_script('uso-app',    plugins_url('js/uso.app'.$min_js.'.js', __FILE__),    ['jquery','wp-i18n','uso-state','uso-calc','uso-canvas','uso-export'], $ver_js, true);
