@@ -23,11 +23,12 @@
   let autosaveTimer = null;
   let isExporting = false;
 
-  function escapeHTML(s){
+  // ✅ ИСПРАВЛЕНО: Используем USO.util.escapeHTML вместо локальной функции
+  const escapeHTML = U.util && U.util.escapeHTML ? U.util.escapeHTML : function(s){
     const div = document.createElement('div');
     div.textContent = String(s || '');
     return div.innerHTML;
-  }
+  };
 
   let recomputeDebounced = null;
 
@@ -1380,7 +1381,8 @@
     return sections.join('<div style="page-break-after:always;"></div>');
   }
 
-  function htmlToPlainText(html){
+  // ✅ ИСПРАВЛЕНО: Используем USO.util.htmlToText вместо локальной функции
+  const htmlToPlainText = U.util && U.util.htmlToText ? U.util.htmlToText : function(html){
     const node = document.createElement('div');
     node.innerHTML = html;
     node.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
@@ -1405,7 +1407,7 @@
     }
     const out = []; walk(node, out);
     return out.join('').replace(/\n{3,}/g,'\n\n').trim();
-  }
+  };
   
   async function safeExport(exportFn, btnSelector) {
     if (isExporting) {

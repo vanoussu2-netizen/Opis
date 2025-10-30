@@ -579,6 +579,8 @@
     if (!mainCanvas) return;
     let isPanning = false;
     let panLast = null;
+    let rafId = null; // ✅ ДОБАВЛЕНО: requestAnimationFrame ID для debounce
+
     mainCanvas.on('mouse:down', function(opt){
       if (markingMode || midlineMode || cropping) return;
       if (opt && opt.target) return;
@@ -587,6 +589,8 @@
       panLast = { x: e.offsetX || 0, y: e.offsetY || 0 };
       mainCanvas.setCursor('grabbing');
     });
+
+    // ✅ ОПТИМИЗИРОВАНО: requestAnimationFrame debounce (60 FPS вместо ~100+ events/sec)
     mainCanvas.on('mouse:move', function(opt){
       if (!isPanning) return;
       const e = opt.e || window.event;
@@ -595,9 +599,26 @@
       const vpt = mainCanvas.viewportTransform;
       vpt[4] += dx; vpt[5] += dy;
       panLast = { x: e.offsetX||0, y: e.offsetY||0 };
-      mainCanvas.requestRenderAll();
+
+      // ✅ Debounce: рендерим только один раз за frame
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          mainCanvas.requestRenderAll();
+          rafId = null;
+        });
+      }
     });
-    mainCanvas.on('mouse:up', function(){ isPanning = false; panLast=null; mainCanvas.setCursor('default'); });
+
+    mainCanvas.on('mouse:up', function(){
+      isPanning = false;
+      panLast = null;
+      mainCanvas.setCursor('default');
+      // ✅ Отменяем pending render при отпускании мыши
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    });
   }
   
   function enableTouchGestures(){
@@ -859,15 +880,16 @@
 
       let lastMarkerTime = 0;
       const MARKER_DEBOUNCE = 300;
+      let lineDrawRafId = null; // ✅ ДОБАВЛЕНО: RAF ID для debounce рисования линий
 
       mainCanvas.on('mouse:down', function(opt){
         if (!canAddMarkers()) return;
         if (currentShape === 'free') return;
-        
+
         const now = Date.now();
         if (now - lastMarkerTime < MARKER_DEBOUNCE) return;
         lastMarkerTime = now;
-        
+
         const p = mainCanvas.getPointer(opt.e);
         const shape = currentShape || 'point';
         if (opt && opt.target) return;
@@ -899,12 +921,21 @@
           syncMarkMode();
         }
       });
+
+      // ✅ ОПТИМИЗИРОВАНО: requestAnimationFrame debounce для рисования линий
       mainCanvas.on('mouse:move', function(opt){
         if (drawState && drawState.mode==='line'){
           const p = mainCanvas.getPointer(opt.e);
           drawState.lineObj.set({ x2:p.x, y2:p.y });
           drawState.lineObj.setCoords();
-          mainCanvas.requestRenderAll();
+
+          // ✅ Debounce: рендерим только один раз за frame
+          if (!lineDrawRafId) {
+            lineDrawRafId = requestAnimationFrame(() => {
+              mainCanvas.requestRenderAll();
+              lineDrawRafId = null;
+            });
+          }
         }
       });
       mainCanvas.on('mouse:up', function(){
@@ -914,6 +945,13 @@
           mainCanvas.setActiveObject(drawState.lineObj);
           applySizeBySlider(drawState.lineObj, getSizeSliderVal());
           drawState = null;
+
+          // ✅ Отменяем pending RAF если есть
+          if (lineDrawRafId) {
+            cancelAnimationFrame(lineDrawRafId);
+            lineDrawRafId = null;
+          }
+
           mainCanvas.requestRenderAll();
           pushHistory(); onChange && onChange();
           syncMarkMode();
