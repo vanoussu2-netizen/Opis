@@ -245,16 +245,6 @@ class USO_Teeth_Calc_Plugin {
           <span class="screen-reader-text"><?php esc_html_e('Загрузить изображение', 'uso-teeth-calculator'); ?></span>
           <input type="file" id="uso-file" accept="image/*" aria-label="<?php esc_attr_e('Загрузить изображение', 'uso-teeth-calculator'); ?>">
         </label>
-        
-        <!-- ✅ НОВОЕ: Селектор режимов работы -->
-        <label>
-          <span><?php esc_html_e('Режим работы:', 'uso-teeth-calculator'); ?></span>
-          <select id="uso-work-mode" aria-label="<?php esc_attr_e('Выберите режим работы', 'uso-teeth-calculator'); ?>">
-            <option value="panoramic" selected><?php esc_html_e('📸 Панорамные снимки', 'uso-teeth-calculator'); ?></option>
-            <option value="simple"><?php esc_html_e('📷 Верхняя/нижняя челюсть', 'uso-teeth-calculator'); ?></option>
-          </select>
-        </label>
-        
         <label><?php esc_html_e('Имя пациента*:', 'uso-teeth-calculator'); ?>
           <input type="text" id="uso-patient-name" placeholder="<?php esc_attr_e('Фамилия Имя Отчество', 'uso-teeth-calculator'); ?>">
         </label>

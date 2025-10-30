@@ -32,68 +32,80 @@
 
   let recomputeDebounced = null;
 
-  // ✅ Инициализация режимов работы
+  // ✅ Инициализация режимов работы (новый UI с кнопками)
   function initWorkModes() {
-    const modeSelect = document.getElementById('uso-work-mode');
-    if (!modeSelect) {
-      console.warn('[USO] Work mode selector not found');
+    const panoramicBtn = document.getElementById('uso-mode-panoramic');
+    const simpleBtn = document.getElementById('uso-mode-simple');
+
+    if (!panoramicBtn || !simpleBtn) {
+      console.warn('[USO] Mode buttons not found');
       return;
     }
 
-    DEBUG.log('[USO] Initializing work modes...');
+    DEBUG.log('[USO] Initializing work modes with button UI...');
 
-    modeSelect.addEventListener('change', function() {
-      const mode = this.value;
+    // Функция для обработки переключения режима
+    function switchMode(mode) {
       DEBUG.log('[USO] Work mode changed to:', mode);
-      
+
       if (CANVAS && CANVAS.setWorkMode) {
         CANVAS.setWorkMode(mode);
       }
-      
+
+      // Очистка навигации и файлового input
       const navEl = document.getElementById('uso-images-nav');
       if (navEl) navEl.innerHTML = '';
-      
+
       const fileEl = document.getElementById('uso-file');
       if (fileEl) fileEl.value = '';
-      
+
       updateModeUI();
       recompute();
+    }
+
+    // Обработчик для кнопки "Панорамный"
+    panoramicBtn.addEventListener('click', function() {
+      if (this.classList.contains('active')) return;
+
+      this.classList.add('active');
+      simpleBtn.classList.remove('active');
+      switchMode(CANVAS.MODES.PANORAMIC);
     });
 
+    // Обработчик для кнопки "Простой"
+    simpleBtn.addEventListener('click', function() {
+      if (this.classList.contains('active')) return;
+
+      this.classList.add('active');
+      panoramicBtn.classList.remove('active');
+      switchMode(CANVAS.MODES.SIMPLE);
+    });
+
+    // Установка начального режима
     if (CANVAS && CANVAS.setWorkMode) {
       CANVAS.setWorkMode(CANVAS.MODES.PANORAMIC);
       DEBUG.log('[USO] Initial mode set to PANORAMIC');
     }
   }
 
-  // ✅ Обновить UI для режима
+  // ✅ Обновить UI для режима (синхронизация кнопок)
   function updateModeUI() {
-    const modeInfo = document.getElementById('uso-mode-info');
-    if (!modeInfo) return;
-    
+    const panoramicBtn = document.getElementById('uso-mode-panoramic');
+    const simpleBtn = document.getElementById('uso-mode-simple');
+
+    if (!panoramicBtn || !simpleBtn) return;
+
     const mode = CANVAS && CANVAS.getWorkMode ? CANVAS.getWorkMode() : 'panoramic';
-    
+
+    // Обновляем активное состояние кнопок
     if (mode === 'simple' || (CANVAS && mode === CANVAS.MODES.SIMPLE)) {
-      modeInfo.innerHTML = `
-        <div style="background: #f3e5f5; padding: 12px; border-radius: 4px; font-size: 13px; color: #6a1b9a;">
-          <strong>📷 Режим простых фото (верхняя/нижняя челюсть)</strong><br>
-          <span style="font-size: 12px;">
-            👆 1-й снимок (верхняя): полная разметка<br>
-            👇 2-й снимок (нижняя): полная разметка<br>
-            📝 Остальные: только рисование
-          </span>
-        </div>
-      `;
+      simpleBtn.classList.add('active');
+      panoramicBtn.classList.remove('active');
+      DEBUG.log('[USO] UI updated to SIMPLE mode');
     } else {
-      modeInfo.innerHTML = `
-        <div style="background: #e3f2fd; padding: 12px; border-radius: 4px; font-size: 13px; color: #1565c0;">
-          <strong>📸 Режим панорамных снимков</strong><br>
-          <span style="font-size: 12px;">
-            ✅ 1-й снимок: полная разметка (метки + рисование)<br>
-            📝 Остальные: только рисование (без меток)
-          </span>
-        </div>
-      `;
+      panoramicBtn.classList.add('active');
+      simpleBtn.classList.remove('active');
+      DEBUG.log('[USO] UI updated to PANORAMIC mode');
     }
   }
 
