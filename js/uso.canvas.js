@@ -1294,6 +1294,72 @@
     return imgData;
   }
 
+  // Функция удаления изображения
+  function removeImage(index) {
+    if (index < 0 || index >= images.length) {
+      console.warn('[USO_CANVAS] Invalid image index for removal:', index);
+      return;
+    }
+
+    // Запрашиваем подтверждение
+    const imgDesc = images[index].description;
+    if (!confirm(`Удалить снимок "${imgDesc}"?\n\nВсе метки и аннотации будут потеряны.`)) {
+      return;
+    }
+
+    DEBUG.log('[USO_CANVAS] Removing image:', index, 'description:', imgDesc);
+
+    // Удаляем canvas элемент из DOM
+    const canvas = canvases[index];
+    if (canvas && canvas.getElement) {
+      const canvasEl = canvas.getElement();
+      if (canvasEl && canvasEl.parentNode) {
+        canvasEl.parentNode.removeChild(canvasEl);
+      }
+      // Очищаем canvas
+      canvas.dispose();
+    }
+
+    // Удаляем из массивов
+    images.splice(index, 1);
+    delete canvases[index];
+
+    // Пересчитываем индексы в canvases
+    const newCanvases = {};
+    Object.keys(canvases).forEach(function(key) {
+      const numKey = parseInt(key);
+      if (numKey > index) {
+        newCanvases[numKey - 1] = canvases[key];
+      } else if (numKey < index) {
+        newCanvases[numKey] = canvases[key];
+      }
+    });
+    canvases = newCanvases;
+
+    // Обновляем activeImageIndex
+    if (images.length === 0) {
+      activeImageIndex = -1;
+      mainCanvas = null;
+      DEBUG.log('[USO_CANVAS] All images removed');
+    } else {
+      // Если удалили активное изображение, переключаемся на предыдущее или первое
+      if (activeImageIndex >= images.length) {
+        activeImageIndex = images.length - 1;
+      }
+      switchImage(activeImageIndex);
+    }
+
+    // Обновляем навигацию
+    updateImageNavigation();
+
+    // Сохраняем состояние
+    if (typeof saveState === 'function') {
+      saveState();
+    }
+
+    DEBUG.log('[USO_CANVAS] Image removed. Remaining images:', images.length);
+  }
+
   // ✅ ПОЛНОСТЬЮ ПЕРЕПИСАНА: Переключение между canvas элементами
   function switchImage(index) {
     if (index < 0 || index >= images.length) {
@@ -1444,14 +1510,33 @@
     if (!nav) return;
 
     nav.innerHTML = '';
+    nav.setAttribute('data-tab-count', images.length);
+
     images.forEach((img, idx) => {
       const tab = document.createElement('div');
       tab.className = 'tab' + (idx === activeImageIndex ? ' active' : '');
       tab.setAttribute('role', 'tab');
       tab.setAttribute('aria-selected', idx === activeImageIndex ? 'true' : 'false');
       tab.setAttribute('data-img-id', idx);
-      tab.textContent = img.description;
-      tab.onclick = () => switchImage(idx);
+
+      // Создаем label для текста вкладки
+      const label = document.createElement('span');
+      label.className = 'tab-label';
+      label.textContent = img.description;
+      label.onclick = () => switchImage(idx);
+      tab.appendChild(label);
+
+      // Создаем кнопку закрытия
+      const closeBtn = document.createElement('span');
+      closeBtn.className = 'tab-close';
+      closeBtn.innerHTML = '×';
+      closeBtn.title = 'Удалить снимок';
+      closeBtn.onclick = (e) => {
+        e.stopPropagation(); // Предотвращаем переключение на вкладку
+        removeImage(idx);
+      };
+      tab.appendChild(closeBtn);
+
       nav.appendChild(tab);
     });
 
@@ -2771,6 +2856,7 @@ async function renderImageWithMarkersToDataUrl(imgIndex) {
     setWorkMode,
     getWorkMode,
     addImage,
+    removeImage,
     switchImage,
     updateImageNavigation,
     getCurrentImage,

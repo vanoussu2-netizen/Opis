@@ -12,9 +12,58 @@
 .variants { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .variants .variants-bar { display:flex; gap:6px; flex-wrap:wrap; }
 .variants .tab {
-  padding:4px 8px; border:1px solid #ccc; border-radius:6px; cursor:pointer; background:#f8f8f8;
+  padding:6px 12px;
+  border:1px solid #ccc;
+  border-radius:6px;
+  cursor:pointer;
+  background:#f8f8f8;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  min-height: 32px;
 }
+.variants .tab:hover { background:#e8e8e8; border-color:#999; }
 .variants .tab.active { background:#2271b1; color:#fff; border-color:#1b5f99; }
+.variants .tab.active:hover { background:#1b5f99; }
+
+/* Текст вкладки */
+.variants .tab .tab-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+/* Кнопка закрытия вкладки */
+.variants .tab .tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  margin-left: 4px;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.variants .tab .tab-close:hover {
+  opacity: 1;
+  background: rgba(0,0,0,0.1);
+}
+.variants .tab.active .tab-close:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+/* Скрыть кнопку закрытия если только одна вкладка */
+.variants .variants-bar[data-tab-count="1"] .tab .tab-close {
+  display: none;
+}
 
 /* Шаг ввода */
 .uso-step { display:grid; gap:8px; grid-template-columns:1fr 1fr 1fr; }
