@@ -222,6 +222,196 @@
     DEBUG.log('[Images] View reset');
   }
 
+  /**
+   * Добавить снимок с EXIF обработкой и правилами режима
+   * @param {Array} images - Массив изображений
+   * @param {Object} MODES - Режимы работы
+   * @param {string} workMode - Текущий режим
+   * @param {Blob|string} blobOrUrl - Blob или URL изображения
+   * @param {string} description - Описание снимка (опционально)
+   * @param {string} jaw - Челюсть (upper/lower/null)
+   * @returns {Promise<Object>} - Данные добавленного снимка
+   */
+  async function addImageWithExif(images, MODES, workMode, blobOrUrl, description = null, jaw = null) {
+    DEBUG.log('[USO_CANVAS_IMAGES] addImageWithExif called, type:', typeof blobOrUrl);
+
+    // ШАГ 1: Обработка входных данных и EXIF
+    let finalUrl = null;
+    let orientation = 1;
+
+    try {
+      // Если передан Blob, извлекаем EXIF
+      if (blobOrUrl instanceof Blob) {
+        DEBUG.log('[USO_CANVAS_IMAGES] Processing Blob, size:', blobOrUrl.size);
+
+        // Пытаемся получить EXIF ориентацию
+        if (typeof window.Exif !== 'undefined' && window.Exif.readFromBlob) {
+          try {
+            const exifData = await window.Exif.readFromBlob(blobOrUrl);
+            if (exifData && exifData.Orientation) {
+              orientation = exifData.Orientation;
+              DEBUG.log('[USO_CANVAS_IMAGES] EXIF orientation:', orientation);
+            }
+          } catch(exifErr) {
+            DEBUG.warn('[USO_CANVAS_IMAGES] Failed to read EXIF:', exifErr);
+          }
+        }
+
+        // Загружаем изображение для нормализации
+        const originalUrl = URL.createObjectURL(blobOrUrl);
+        const img = await loadImageElement(originalUrl);
+
+        // Поворачиваем/нормализуем если нужно
+        if (orientation !== 1 && orientation >= 3 && orientation <= 8) {
+          DEBUG.log('[USO_CANVAS_IMAGES] Rotating image, orientation:', orientation);
+          finalUrl = drawWithOrientationExact(img, orientation);
+        } else {
+          finalUrl = originalUrl;
+        }
+
+        // Очищаем временный URL
+        if (finalUrl !== originalUrl) {
+          URL.revokeObjectURL(originalUrl);
+        }
+      } else {
+        // Если URL строка, используем напрямую
+        finalUrl = String(blobOrUrl);
+        DEBUG.log('[USO_CANVAS_IMAGES] Using URL directly');
+      }
+    } catch(err) {
+      console.error('[USO_CANVAS_IMAGES] Error processing image:', err);
+      // Фоллбэк: используем исходные данные
+      finalUrl = (blobOrUrl instanceof Blob) ? URL.createObjectURL(blobOrUrl) : String(blobOrUrl);
+      DEBUG.warn('[USO_CANVAS_IMAGES] Fallback to original URL');
+    }
+
+    // ШАГ 2: Создаем объект imgData по правилам режима
+    const imgData = createImageData(workMode);
+    imgData.imageUrl = finalUrl;
+    imgData.jaw = jaw;
+
+    if (workMode === MODES.PANORAMIC) {
+      // PANORAMIC: canMark = (images.length === 0), canDraw = true
+      imgData.canMark = (images.length === 0);
+      imgData.canDraw = true;
+      imgData.description = description || `Панорамный ${images.length + 1}`;
+      if (images.length > 0 && !description) {
+        imgData.description += images.length === 1 ? ' (2-й)' : ' (доп.)';
+      }
+      DEBUG.log('[USO_CANVAS_IMAGES] PANORAMIC mode - canMark:', imgData.canMark);
+    } else if (workMode === MODES.SIMPLE) {
+      // SIMPLE: первые 2-3 — с canMark = true, далее — только рисование
+      if (images.length === 0) {
+        imgData.canMark = true;
+        imgData.canDraw = true;
+        imgData.jaw = jaw || 'upper';
+        imgData.description = description || '👆 Верхняя челюсть';
+      } else if (images.length === 1) {
+        imgData.canMark = true;
+        imgData.canDraw = true;
+        imgData.jaw = jaw || 'lower';
+        imgData.description = description || '👇 Нижняя челюсть';
+      } else if (images.length === 2) {
+        imgData.canMark = true;
+        imgData.canDraw = true;
+        imgData.jaw = jaw || null;
+        imgData.description = description || '📎 Доп. снимок 1';
+      } else {
+        // Остальные снимки - только рисование
+        imgData.canMark = false;
+        imgData.canDraw = true;
+        imgData.jaw = jaw || null;
+        imgData.description = description || `📎 Доп. снимок ${images.length - 1}`;
+      }
+      DEBUG.log('[USO_CANVAS_IMAGES] SIMPLE mode - canMark:', imgData.canMark);
+    }
+
+    DEBUG.log('[USO_CANVAS_IMAGES] Image data created:', imgData.description);
+    return imgData;
+  }
+
+  /**
+   * Загрузить изображение в canvas
+   * @param {Object} mainCanvas - Fabric canvas
+   * @param {Object} imgData - Данные изображения
+   * @param {Function} getAvailCanvasHeightFn - Функция получения высоты
+   * @returns {Promise<void>}
+   */
+  async function loadImageToCanvas(mainCanvas, imgData, getAvailCanvasHeightFn) {
+    if (!imgData || !imgData.imageUrl) {
+      DEBUG.warn('[USO_CANVAS_IMAGES] No image data or URL');
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      fabric.Image.fromURL(imgData.imageUrl, function(fabricImg) {
+        if (!fabricImg) {
+          console.error('[USO_CANVAS_IMAGES] Failed to create fabric image');
+          reject(new Error('Failed to create fabric image'));
+          return;
+        }
+
+        fabricImg.set({ selectable:false, evented:false });
+        imgData.bgImg = fabricImg;
+
+        const wrap = document.getElementById('uso-canvas-container');
+        const innerW = Math.max(320, wrap.clientWidth || 320);
+        const innerH0 = wrap.clientHeight || 0;
+        const useH = innerH0 > 0 ? innerH0 : getAvailCanvasHeightFn(wrap);
+
+        const source = (typeof fabricImg.getElement === 'function') ? fabricImg.getElement() : fabricImg._element;
+        const natW = source.naturalWidth || source.width;
+        const natH = source.naturalHeight || source.height;
+
+        const scaleW = innerW / natW;
+        const scaleH = useH / natH;
+        let scale = Math.min(scaleW, scaleH);
+        if (!isFinite(scale) || scale <= 0) scale = scaleW || 1;
+
+        const targetW = Math.round(natW * scale);
+        const targetH = Math.round(natH * scale);
+
+        imgData.scale = scale;
+        imgData.targetW = targetW;
+        imgData.targetH = targetH;
+
+        const vpt = [1,0,0,1,0,0];
+        mainCanvas.setViewportTransform(vpt);
+        mainCanvas.setZoom(1);
+
+        fabricImg.set({
+          left:0,
+          top:0,
+          scaleX: scale,
+          scaleY: scale,
+          selectable:false,
+          evented:false,
+          angle:0
+        });
+
+        mainCanvas.setWidth(targetW);
+        mainCanvas.setHeight(targetH);
+
+        mainCanvas.add(fabricImg);
+        mainCanvas.sendToBack(fabricImg);
+
+        // Загружаем метки если есть
+        if (imgData.markers && Array.isArray(imgData.markers) && imgData.markers.length > 0) {
+          imgData.markers.forEach(m => {
+            if (m && !mainCanvas.getObjects().includes(m)) {
+              mainCanvas.add(m);
+            }
+          });
+          DEBUG.log('[USO_CANVAS_IMAGES] Loaded', imgData.markers.length, 'markers');
+        }
+
+        mainCanvas.requestRenderAll();
+        DEBUG.log('[USO_CANVAS_IMAGES] Image loaded successfully');
+        resolve();
+      }, { crossOrigin: 'anonymous' });
+    });
+  }
+
   // Экспорт
   U.CanvasImages = {
     createImageData,
@@ -232,7 +422,9 @@
     getAvailCanvasHeight,
     canvasImage,
     hasImage,
-    resetView
+    resetView,
+    addImageWithExif, // ✅ Новое
+    loadImageToCanvas  // ✅ Новое
   };
 
   DEBUG.log('[USO_CANVAS_IMAGES] Module loaded');
