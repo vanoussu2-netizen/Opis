@@ -264,8 +264,18 @@ class USO_Teeth_Calc_Plugin {
         </label>
       </div>
 
-      <!-- ✅ НОВОЕ: Информация о режиме -->
-      <div id="uso-mode-info" style="margin-bottom: 12px;"></div>
+      <!-- ✅ Переключатель режима (панорамный/простой) -->
+      <div class="uso-mode-selector" style="margin-bottom: 12px;">
+        <label style="font-weight: 500; margin-right: 8px;"><?php esc_html_e('Режим:', 'uso-teeth-calculator'); ?></label>
+        <div class="mode-buttons">
+          <button type="button" id="uso-mode-panoramic" class="mode-btn active" data-mode="panoramic">
+            <?php esc_html_e('Панорамный', 'uso-teeth-calculator'); ?>
+          </button>
+          <button type="button" id="uso-mode-simple" class="mode-btn" data-mode="simple">
+            <?php esc_html_e('Простой', 'uso-teeth-calculator'); ?>
+          </button>
+        </div>
+      </div>
 
       <!-- ✅ НОВОЕ: Навигация по снимкам (вкладки) -->
       <div class="variants" role="tablist" aria-label="<?php esc_attr_e('Снимки', 'uso-teeth-calculator'); ?>" style="margin-bottom:12px;">

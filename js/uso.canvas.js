@@ -1255,15 +1255,17 @@
     imgData.jaw = jaw;
 
     if (workMode === MODES.PANORAMIC) {
-      // ✅ ИСПРАВЛЕНО: В панорамном режиме - первые 3 снимка могут иметь метки
-      imgData.canMark = (images.length < 3);
+      // ✅ НОВЫЕ ПРАВИЛА: В панорамном режиме - только 1-й снимок может иметь метки
+      // 1-й снимок: метки + рисование
+      // 2-й и далее: только рисование
+      imgData.canMark = (images.length === 0);
       imgData.canDraw = true;
-      imgData.description = `Панорамный снимок ${images.length + 1}`;
+      imgData.description = `Панорамный ${images.length + 1}`;
       if (images.length > 0) {
-        imgData.description += images.length === 1 ? ' (2-й)' : images.length === 2 ? ' (3-й)' : ' (доп.)';
+        imgData.description += images.length === 1 ? ' (2-й)' : ' (доп.)';
       }
     } else if (workMode === MODES.SIMPLE) {
-      // ✅ ИСПРАВЛЕНО: В простом режиме - первые 3 снимка могут иметь метки
+      // ✅ Простой режим: первые 3 снимка могут иметь метки
       if (images.length === 0) {
         imgData.canMark = true;
         imgData.canDraw = true;
@@ -1275,13 +1277,12 @@
         imgData.jaw = 'lower';
         imgData.description = '👇 Нижняя челюсть';
       } else if (images.length === 2) {
-        // ✅ НОВОЕ: Третий снимок тоже может иметь метки
         imgData.canMark = true;
         imgData.canDraw = true;
         imgData.jaw = null;
         imgData.description = '📎 Доп. снимок 1';
       } else {
-        // ✅ Остальные снимки - только рисование
+        // Остальные снимки - только рисование
         imgData.canMark = false;
         imgData.canDraw = true;
         imgData.jaw = null;
