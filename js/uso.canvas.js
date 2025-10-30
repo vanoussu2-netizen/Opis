@@ -1248,50 +1248,126 @@
     return workMode;
   }
 
-  function addImage(imageUrl, description = 'Снимок', jaw = null) {
+  /**
+   * Добавить снимок с EXIF обработкой и правилами режима
+   * @param {Blob|string} blobOrUrl - Blob или URL изображения
+   * @param {string} description - Описание снимка (опционально)
+   * @param {string} jaw - Челюсть (upper/lower/null)
+   * @returns {Promise<Object>} - Данные добавленного снимка
+   */
+  async function addImage(blobOrUrl, description = null, jaw = null) {
+    DEBUG.log('[USO_CANVAS] addImage called, type:', typeof blobOrUrl);
+
+    // ✅ ШАГ 1: Обработка входных данных и EXIF
+    let finalUrl = null;
+    let orientation = 1;
+
+    try {
+      // Если передан Blob, извлекаем EXIF
+      if (blobOrUrl instanceof Blob) {
+        DEBUG.log('[USO_CANVAS] Processing Blob, size:', blobOrUrl.size);
+
+        // Пытаемся получить EXIF ориентацию
+        if (typeof window.Exif !== 'undefined' && window.Exif.readFromBlob) {
+          try {
+            const exifData = await window.Exif.readFromBlob(blobOrUrl);
+            if (exifData && exifData.Orientation) {
+              orientation = exifData.Orientation;
+              DEBUG.log('[USO_CANVAS] EXIF orientation:', orientation);
+            }
+          } catch(exifErr) {
+            DEBUG.warn('[USO_CANVAS] Failed to read EXIF, using default orientation:', exifErr);
+          }
+        }
+
+        // Загружаем изображение для нормализации
+        const originalUrl = URL.createObjectURL(blobOrUrl);
+        const img = await U.CanvasImages.loadImageElement(originalUrl);
+
+        // ✅ Поворачиваем/нормализуем если нужно
+        if (orientation !== 1 && orientation >= 3 && orientation <= 8) {
+          DEBUG.log('[USO_CANVAS] Rotating image according to EXIF orientation:', orientation);
+          finalUrl = U.CanvasImages.drawWithOrientationExact(img, orientation);
+        } else {
+          finalUrl = originalUrl;
+        }
+
+        // Очищаем временный URL
+        if (finalUrl !== originalUrl) {
+          URL.revokeObjectURL(originalUrl);
+        }
+      } else {
+        // Если URL строка, используем напрямую
+        finalUrl = String(blobOrUrl);
+        DEBUG.log('[USO_CANVAS] Using URL directly:', finalUrl.substring(0, 50));
+      }
+    } catch(err) {
+      console.error('[USO_CANVAS] Error processing image:', err);
+      // Фоллбэк: используем исходные данные
+      finalUrl = (blobOrUrl instanceof Blob) ? URL.createObjectURL(blobOrUrl) : String(blobOrUrl);
+      DEBUG.warn('[USO_CANVAS] Fallback to original URL without EXIF processing');
+    }
+
+    // ✅ ШАГ 2: Создаем объект imgData по правилам режима
     const imgData = createImageData(workMode);
-    imgData.imageUrl = imageUrl;
-    imgData.description = description;
+    imgData.imageUrl = finalUrl;
     imgData.jaw = jaw;
 
     if (workMode === MODES.PANORAMIC) {
-      // ✅ НОВЫЕ ПРАВИЛА: В панорамном режиме - только 1-й снимок может иметь метки
-      // 1-й снимок: метки + рисование
-      // 2-й и далее: только рисование
+      // PANORAMIC: canMark = (images.length === 0), canDraw = true
       imgData.canMark = (images.length === 0);
       imgData.canDraw = true;
-      imgData.description = `Панорамный ${images.length + 1}`;
-      if (images.length > 0) {
+      imgData.description = description || `Панорамный ${images.length + 1}`;
+      if (images.length > 0 && !description) {
         imgData.description += images.length === 1 ? ' (2-й)' : ' (доп.)';
       }
+      DEBUG.log('[USO_CANVAS] PANORAMIC mode - canMark:', imgData.canMark);
     } else if (workMode === MODES.SIMPLE) {
-      // ✅ Простой режим: первые 3 снимка могут иметь метки
+      // SIMPLE: первые 2-3 — с canMark = true, далее — только рисование
       if (images.length === 0) {
         imgData.canMark = true;
         imgData.canDraw = true;
-        imgData.jaw = 'upper';
-        imgData.description = '👆 Верхняя челюсть';
+        imgData.jaw = jaw || 'upper';
+        imgData.description = description || '👆 Верхняя челюсть';
       } else if (images.length === 1) {
         imgData.canMark = true;
         imgData.canDraw = true;
-        imgData.jaw = 'lower';
-        imgData.description = '👇 Нижняя челюсть';
+        imgData.jaw = jaw || 'lower';
+        imgData.description = description || '👇 Нижняя челюсть';
       } else if (images.length === 2) {
         imgData.canMark = true;
         imgData.canDraw = true;
-        imgData.jaw = null;
-        imgData.description = '📎 Доп. снимок 1';
+        imgData.jaw = jaw || null;
+        imgData.description = description || '📎 Доп. снимок 1';
       } else {
         // Остальные снимки - только рисование
         imgData.canMark = false;
         imgData.canDraw = true;
-        imgData.jaw = null;
-        imgData.description = `📎 Доп. снимок ${images.length - 1}`;
+        imgData.jaw = jaw || null;
+        imgData.description = description || `📎 Доп. снимок ${images.length - 1}`;
       }
+      DEBUG.log('[USO_CANVAS] SIMPLE mode - canMark:', imgData.canMark);
     }
 
+    // ✅ ШАГ 3: Добавляем в массив images[]
     images.push(imgData);
-    DEBUG.log('[USO_CANVAS] Image added:', imgData.description, 'canMark:', imgData.canMark, 'Total:', images.length);
+    const newIndex = images.length - 1;
+
+    DEBUG.log('[USO_CANVAS] Image added:', imgData.description, 'canMark:', imgData.canMark, 'index:', newIndex);
+
+    // ✅ ШАГ 4: Создаем вкладку (обновляем навигацию)
+    updateImageNavigation();
+
+    // ✅ ШАГ 5: Опционально автопереход на новую вкладку
+    // По умолчанию переключаемся на новый снимок
+    await switchImage(newIndex);
+
+    // Сохраняем состояние
+    if (typeof saveState === 'function') {
+      saveState();
+    }
+
+    DEBUG.log('[USO_CANVAS] addImage completed, total images:', images.length);
     return imgData;
   }
 
@@ -1361,39 +1437,55 @@
     DEBUG.log('[USO_CANVAS] Image removed. Remaining images:', images.length);
   }
 
-  // ✅ ПОЛНОСТЬЮ ПЕРЕПИСАНА: Переключение между canvas элементами
-  function switchImage(index) {
+  /**
+   * Переключение вкладки с сохранением/загрузкой snapshot
+   * @param {number} index - Индекс изображения для переключения
+   * @returns {Promise<void>}
+   */
+  async function switchImage(index) {
     if (index < 0 || index >= images.length) {
       console.warn('[USO_CANVAS] Invalid image index:', index);
       return;
     }
 
-    DEBUG.log('[USO_CANVAS] Switching to image:', index, 'description:', images[index].description);
+    DEBUG.log('[USO_CANVAS] Switching from', activeImageIndex, 'to', index);
 
-    // ✅ НОВОЕ: Скрываем все canvas
-    Object.keys(canvases).forEach(function(key) {
-      const canvas = canvases[key];
-      if (canvas && canvas.getElement) {
-        canvas.getElement().style.display = 'none';
+    // ✅ ШАГ 1: Сохраняем snapshot текущей сцены (если есть активный canvas)
+    if (mainCanvas && activeImageIndex >= 0 && activeImageIndex < images.length) {
+      try {
+        const currentImgData = images[activeImageIndex];
+        if (currentImgData) {
+          // Сохраняем полный snapshot canvas в JSON
+          currentImgData.serialized = mainCanvas.toJSON([
+            'markerType', 'excludeFromExport', '_norm', '_lastSizeVal',
+            '_manuallyScaled', '_absoluteSize', 'strokeUniform'
+          ]);
+          DEBUG.log('[USO_CANVAS] Snapshot saved for image', activeImageIndex);
+        }
+      } catch(err) {
+        DEBUG.error('[USO_CANVAS] Error saving snapshot:', err);
       }
-    });
+    }
 
+    // ✅ ШАГ 2: Скрываем текущий canvas
+    if (mainCanvas && mainCanvas.getElement) {
+      mainCanvas.getElement().style.display = 'none';
+    }
+
+    // ✅ ШАГ 3: Обновляем активный индекс
     activeImageIndex = index;
     const imgData = images[index];
-    markingMode = imgData.canMark;
 
-    // ✅ НОВОЕ: Проверяем, существует ли canvas для этого изображения
+    // ✅ ШАГ 4: Создаем canvas если не существует
     if (!canvases[index]) {
       DEBUG.log('[USO_CANVAS] Creating new canvas for image:', index);
 
-      // Создаем новый canvas элемент
       const canvasEl = createCanvasElement(index);
       if (!canvasEl) {
         console.error('[USO_CANVAS] Failed to create canvas element');
         return;
       }
 
-      // Создаем fabric.Canvas
       const fabricCanvas = new fabric.Canvas(canvasEl, {
         selection: true,
         preserveObjectStacking: true,
@@ -1409,33 +1501,97 @@
       DEBUG.log('[USO_CANVAS] New canvas created:', canvasEl.id);
     }
 
-    // ✅ НОВОЕ: Переключаемся на нужный canvas
+    // ✅ ШАГ 5: Переключаемся на нужный canvas
     mainCanvas = canvases[index];
     mainCanvas.getElement().style.display = 'block';
 
-    DEBUG.log('[USO_CANVAS] Switched to canvas:', index, 'element:', mainCanvas.getElement().id);
+    // ✅ ШАГ 6: Загружаем snapshot или создаём чистую сцену с фоном
+    if (imgData.serialized) {
+      // Загружаем сохраненный snapshot
+      try {
+        DEBUG.log('[USO_CANVAS] Loading snapshot for image:', index);
 
-    // Если изображение уже загружено, просто показываем
-    if (imgData.bgImg) {
-      DEBUG.log('[USO_CANVAS] Image already loaded, showing existing canvas');
+        await new Promise((resolve, reject) => {
+          mainCanvas.loadFromJSON(imgData.serialized, function() {
+            DEBUG.log('[USO_CANVAS] Snapshot loaded successfully');
 
-      mainCanvas.isDrawingMode = (imgData.canDraw && currentShape === 'free' && markingMode);
+            // Обновляем ссылку на bgImg после загрузки
+            const loadedBgImg = U.CanvasImages.canvasImage(mainCanvas);
+            if (loadedBgImg) {
+              imgData.bgImg = loadedBgImg;
+            }
 
-      syncMarkMode();
-      updateMarkingButton();
-      ensureMidline();
+            // Восстанавливаем массив маркеров
+            imgData.markers = mainCanvas.getObjects().filter(obj => {
+              return obj.type !== 'image' && obj.markerType !== '__midline__';
+            });
 
-      mainCanvas.requestRenderAll();
-      updateImageNavigation();
-      DEBUG.log('[USO_CANVAS] Image switched successfully (cached)');
+            DEBUG.log('[USO_CANVAS] Restored', imgData.markers.length, 'markers from snapshot');
+            resolve();
+          }, function(o, obj) {
+            // Callback для каждого объекта при загрузке
+            // Восстанавливаем кастомные свойства
+            if (obj._norm) obj._norm = o._norm;
+            if (obj._lastSizeVal) obj._lastSizeVal = o._lastSizeVal;
+            if (obj._manuallyScaled) obj._manuallyScaled = o._manuallyScaled;
+            if (obj._absoluteSize) obj._absoluteSize = o._absoluteSize;
+          });
+        });
+
+        // Применяем инструменты
+        markingMode = imgData.canMark;
+        mainCanvas.isDrawingMode = (imgData.canDraw && currentShape === 'free' && markingMode);
+
+      } catch(err) {
+        DEBUG.error('[USO_CANVAS] Error loading snapshot, recreating scene:', err);
+
+        // ✅ ФОЛЛБЭК: Если snapshot битый — создаем сцену заново
+        mainCanvas.clear();
+        if (imgData.imageUrl) {
+          await loadImageToCanvas(index);
+        }
+      }
+    } else if (imgData.imageUrl) {
+      // Создаём чистую сцену с фоном (первая загрузка)
+      DEBUG.log('[USO_CANVAS] First load, creating clean scene for image:', index);
+      await loadImageToCanvas(index);
+    }
+
+    // ✅ ШАГ 7: Применяем инструменты: markingMode = images[active].canMark
+    markingMode = imgData.canMark;
+    mainCanvas.isDrawingMode = (imgData.canDraw && currentShape === 'free' && markingMode);
+
+    DEBUG.log('[USO_CANVAS] Applied tools - canMark:', imgData.canMark, 'canDraw:', imgData.canDraw, 'markingMode:', markingMode);
+
+    // ✅ ШАГ 8: Обновляем UI (состояния кнопок), таб-бар подсвечивает активный
+    syncMarkMode();
+    updateMarkingButton();
+    ensureMidline(true);
+    applyFreeBrush();
+
+    mainCanvas.requestRenderAll();
+    updateImageNavigation();
+
+    DEBUG.log('[USO_CANVAS] switchImage completed for index:', index);
+  }
+
+  /**
+   * Загрузить изображение в canvas (вспомогательная функция)
+   * @param {number} index - Индекс изображения
+   * @returns {Promise<void>}
+   */
+  async function loadImageToCanvas(index) {
+    const imgData = images[index];
+    if (!imgData || !imgData.imageUrl) {
+      DEBUG.warn('[USO_CANVAS] No image data or URL for index:', index);
       return;
     }
 
-    // ✅ Загружаем изображение в canvas (только если еще не загружено)
-    if (imgData.imageUrl) {
+    return new Promise((resolve, reject) => {
       fabric.Image.fromURL(imgData.imageUrl, function(fabricImg) {
         if (!fabricImg) {
           console.error('[USO] Failed to create fabric image');
+          reject(new Error('Failed to create fabric image'));
           return;
         }
 
@@ -1445,15 +1601,15 @@
         const wrap = document.getElementById('uso-canvas-container');
         const innerW = Math.max(320, wrap.clientWidth || 320);
         const innerH0 = wrap.clientHeight || 0;
-        const useH   = innerH0 > 0 ? innerH0 : getAvailCanvasHeight(wrap);
+        const useH = innerH0 > 0 ? innerH0 : U.CanvasImages.getAvailCanvasHeight(wrap);
 
         const source = (typeof fabricImg.getElement === 'function') ? fabricImg.getElement() : fabricImg._element;
         const natW = source.naturalWidth || source.width;
         const natH = source.naturalHeight || source.height;
 
         const scaleW = innerW / natW;
-        const scaleH = useH  / natH;
-        let scale    = Math.min(scaleW, scaleH);
+        const scaleH = useH / natH;
+        let scale = Math.min(scaleW, scaleH);
         if (!isFinite(scale) || scale <= 0) scale = scaleW || 1;
 
         const targetW = Math.round(natW * scale);
@@ -1483,27 +1639,21 @@
         mainCanvas.add(fabricImg);
         mainCanvas.sendToBack(fabricImg);
 
-        // ✅ Загружаем метки если есть
-        if (imgData.markers && Array.isArray(imgData.markers)) {
+        // Загружаем метки если есть (для backward compatibility)
+        if (imgData.markers && Array.isArray(imgData.markers) && imgData.markers.length > 0) {
           imgData.markers.forEach(m => {
-            mainCanvas.add(m);
+            if (m && !mainCanvas.getObjects().includes(m)) {
+              mainCanvas.add(m);
+            }
           });
           DEBUG.log('[USO_CANVAS] Loaded', imgData.markers.length, 'markers for image', index);
         }
 
-        mainCanvas.isDrawingMode = (imgData.canDraw && currentShape === 'free' && markingMode);
-
-        DEBUG.log('[USO_CANVAS] Image', index, '- markingMode:', markingMode, 'drawingMode:', mainCanvas.isDrawingMode);
-
-        syncMarkMode();
-        updateMarkingButton();
-        ensureMidline();
-
         mainCanvas.requestRenderAll();
-        updateImageNavigation();
-        DEBUG.log('[USO_CANVAS] Image switched successfully');
+        DEBUG.log('[USO_CANVAS] Image loaded successfully:', index);
+        resolve();
       }, { crossOrigin: 'anonymous' });
-    }
+    });
   }
 
   function updateImageNavigation() {
@@ -1546,6 +1696,92 @@
 
   function getCurrentImage() {
     return images[activeImageIndex] || null;
+  }
+
+  /**
+   * Переместить вкладку (реордер)
+   * @param {number} fromIndex - Исходный индекс
+   * @param {number} toIndex - Целевой индекс
+   */
+  function reorderImage(fromIndex, toIndex) {
+    if (fromIndex < 0 || fromIndex >= images.length ||
+        toIndex < 0 || toIndex >= images.length ||
+        fromIndex === toIndex) {
+      DEBUG.warn('[USO_CANVAS] Invalid reorder indices:', fromIndex, '->', toIndex);
+      return;
+    }
+
+    DEBUG.log('[USO_CANVAS] Reordering image from', fromIndex, 'to', toIndex);
+
+    // Сохраняем снимок который перемещаем
+    const movingImage = images[fromIndex];
+    const movingCanvas = canvases[fromIndex];
+
+    // Удаляем из старой позиции
+    images.splice(fromIndex, 1);
+    delete canvases[fromIndex];
+
+    // Вставляем в новую позицию
+    images.splice(toIndex, 0, movingImage);
+
+    // Пересобираем словарь canvases
+    const newCanvases = {};
+    images.forEach((img, idx) => {
+      if (idx === toIndex) {
+        // Это наш перемещенный canvas
+        newCanvases[idx] = movingCanvas;
+      } else {
+        // Ищем соответствующий старый canvas
+        const oldIndex = (idx < toIndex) ? idx : (idx - 1);
+        if (canvases[oldIndex]) {
+          newCanvases[idx] = canvases[oldIndex];
+        }
+      }
+    });
+
+    canvases = newCanvases;
+
+    // ✅ ВАЖНО: Пересчитываем правила режима (canMark/canDraw) после реордера
+    if (workMode === MODES.PANORAMIC) {
+      // В панорамном режиме: только первый может иметь метки
+      images.forEach((img, idx) => {
+        img.canMark = (idx === 0);
+        img.canDraw = true;
+      });
+    } else if (workMode === MODES.SIMPLE) {
+      // В простом режиме: первые 2-3 могут иметь метки
+      images.forEach((img, idx) => {
+        if (idx === 0 || idx === 1 || idx === 2) {
+          img.canMark = true;
+          img.canDraw = true;
+        } else {
+          img.canMark = false;
+          img.canDraw = true;
+        }
+      });
+    }
+
+    // Обновляем активный индекс
+    if (activeImageIndex === fromIndex) {
+      // Если перемещали активную вкладку, следуем за ней
+      activeImageIndex = toIndex;
+    } else if (activeImageIndex > fromIndex && activeImageIndex <= toIndex) {
+      // Если активная вкладка между fromIndex и toIndex, сдвигаем влево
+      activeImageIndex--;
+    } else if (activeImageIndex < fromIndex && activeImageIndex >= toIndex) {
+      // Если активная вкладка между toIndex и fromIndex, сдвигаем вправо
+      activeImageIndex++;
+    }
+
+    // Обновляем UI
+    updateImageNavigation();
+
+    // Сохраняем состояние
+    if (typeof saveState === 'function') {
+      saveState();
+    }
+
+    DEBUG.log('[USO_CANVAS] Reorder completed, new active index:', activeImageIndex);
   }
 
   // ✅ ИСПРАВЛЕННАЯ функция serialize
@@ -2084,41 +2320,143 @@
     return Math.max(240, free);
   }
 
-  function resizeToContainer(){
+  // ✅ Debounce timeout для resize (глобальная переменная уже объявлена выше)
+  // let _resizeTimeout = null;
+
+  /**
+   * Ресайз активного canvas с debounce и фоллбэком
+   * Высоту держит контейнер. Если снапшот битый — фоллбэк: подогнать фон + восстановить кисть
+   */
+  function resizeToContainer() {
     if (!mainCanvas) return;
-    try {
-      const snapshot = serialize();
-      
-      if (!snapshot || typeof snapshot !== 'object') {
-        console.warn('[USO] Invalid snapshot, skipping resize');
-        const imgData = images[activeImageIndex];
-        if (imgData && imgData.bgImg) fitImageToCanvas(imgData.bgImg, false);
-        applyFreeBrush();
-        return;
-      }
-      
-      if (!Array.isArray(snapshot.items)) {
-        console.warn('[USO] Snapshot has no items array');
-        const imgData = images[activeImageIndex];
-        if (imgData && imgData.bgImg) fitImageToCanvas(imgData.bgImg, false);
-        applyFreeBrush();
-        return;
-      }
-      
-      const imgData = images[activeImageIndex];
-      if (imgData && imgData.bgImg) fitImageToCanvas(imgData.bgImg, false);
-      load(snapshot);
-      applyFreeBrush();
-    } catch(err) {
-      console.error('[USO] Resize error:', err);
+
+    // ✅ DEBOUNCE: Отменяем предыдущий timeout
+    clearTimeout(_resizeTimeout);
+
+    // ✅ DEBOUNCE 100-150 мс: устанавливаем новый timeout
+    _resizeTimeout = setTimeout(function() {
       try {
+        DEBUG.log('[USO_CANVAS] Resizing active canvas, index:', activeImageIndex);
+
+        // Сохраняем snapshot текущей сцены
+        let snapshot = null;
+        try {
+          snapshot = mainCanvas.toJSON([
+            'markerType', 'excludeFromExport', '_norm', '_lastSizeVal',
+            '_manuallyScaled', '_absoluteSize', 'strokeUniform'
+          ]);
+        } catch(snapshotErr) {
+          DEBUG.warn('[USO_CANVAS] Failed to save snapshot for resize:', snapshotErr);
+        }
+
         const imgData = images[activeImageIndex];
-        if (imgData && imgData.bgImg) fitImageToCanvas(imgData.bgImg, false);
-        applyFreeBrush();
-      } catch(e) {
-        console.error('[USO] Failed to recover from resize error:', e);
+        if (!imgData) {
+          DEBUG.warn('[USO_CANVAS] No active image data');
+          return;
+        }
+
+        // Подгоняем фон к новым размерам контейнера
+        if (imgData.bgImg) {
+          U.CanvasImages.fitImageToCanvas(
+            mainCanvas,
+            imgData.bgImg,
+            false, // keepObjects = false (будем загружать из snapshot)
+            getMarkersForCurrentImage,
+            ensureMidline,
+            applyFreeBrush,
+            rescaleMarker
+          );
+
+          // ✅ Обновляем сохраненные размеры
+          imgData.targetW = mainCanvas.getWidth();
+          imgData.targetH = mainCanvas.getHeight();
+          imgData.scale = mainCanvas.getWidth() / (imgData.bgImg.getElement ?
+            (imgData.bgImg.getElement().naturalWidth || imgData.bgImg.getElement().width) :
+            mainCanvas.getWidth());
+        }
+
+        // ✅ ФОЛЛБЭК: Если снапшот битый — восстанавливаем только фон и кисть
+        if (!snapshot || typeof snapshot !== 'object' || !snapshot.objects) {
+          DEBUG.warn('[USO_CANVAS] Invalid snapshot, using fallback mode');
+
+          // Восстанавливаем метки из массива imgData.markers
+          if (imgData.markers && Array.isArray(imgData.markers)) {
+            imgData.markers.forEach(function(marker) {
+              if (marker && !mainCanvas.getObjects().includes(marker)) {
+                mainCanvas.add(marker);
+                // Перемасштабируем маркер под новые размеры
+                rescaleMarker(marker);
+              }
+            });
+          }
+
+          ensureMidline(true);
+          applyFreeBrush();
+          mainCanvas.requestRenderAll();
+          DEBUG.log('[USO_CANVAS] Resize completed (fallback mode)');
+          return;
+        }
+
+        // ✅ Загружаем snapshot с метками
+        mainCanvas.loadFromJSON(snapshot, function() {
+          // После загрузки пересчитываем размеры всех маркеров
+          const markers = mainCanvas.getObjects().filter(obj => {
+            return obj.type !== 'image' && obj.markerType !== '__midline__';
+          });
+
+          markers.forEach(rescaleMarker);
+
+          // Обновляем ссылки
+          imgData.markers = markers;
+          const loadedBgImg = U.CanvasImages.canvasImage(mainCanvas);
+          if (loadedBgImg) {
+            imgData.bgImg = loadedBgImg;
+          }
+
+          ensureMidline(true);
+          applyFreeBrush();
+          mainCanvas.requestRenderAll();
+          DEBUG.log('[USO_CANVAS] Resize completed, markers:', markers.length);
+        }, function(o, obj) {
+          // Восстанавливаем кастомные свойства при загрузке каждого объекта
+          if (o._norm) obj._norm = o._norm;
+          if (o._lastSizeVal) obj._lastSizeVal = o._lastSizeVal;
+          if (o._manuallyScaled) obj._manuallyScaled = o._manuallyScaled;
+          if (o._absoluteSize) obj._absoluteSize = o._absoluteSize;
+        });
+
+      } catch(err) {
+        console.error('[USO_CANVAS] Resize error:', err);
+
+        // ✅ КРИТИЧЕСКИЙ ФОЛЛБЭК: Восстанавливаем минимальную работоспособность
+        try {
+          const imgData = images[activeImageIndex];
+          if (imgData && imgData.bgImg) {
+            DEBUG.log('[USO_CANVAS] Critical fallback: restoring background only');
+
+            // Очищаем canvas
+            mainCanvas.clear();
+
+            // Подгоняем фон
+            U.CanvasImages.fitImageToCanvas(
+              mainCanvas,
+              imgData.bgImg,
+              false,
+              getMarkersForCurrentImage,
+              ensureMidline,
+              applyFreeBrush,
+              rescaleMarker
+            );
+
+            applyFreeBrush();
+            mainCanvas.requestRenderAll();
+            DEBUG.warn('[USO_CANVAS] Recovered from resize error (background only, markers lost)');
+          }
+        } catch(fallbackErr) {
+          console.error('[USO_CANVAS] Failed to recover from resize error:', fallbackErr);
+        }
       }
-    }
+    }, 150); // ✅ DEBOUNCE 150 мс
   }
   
   function resetView(){ 
@@ -2840,6 +3178,14 @@ async function renderImageWithMarkersToDataUrl(imgIndex) {
   }
 
   // ===== ЭКСПОРТ =====
+  /**
+   * Получить текущий индекс изображения
+   * @returns {number}
+   */
+  function getCurrentImageIndex() {
+    return activeImageIndex;
+  }
+
   w.USO_CANVAS = {
     MODES,
     initCanvas,
@@ -2859,8 +3205,10 @@ async function renderImageWithMarkersToDataUrl(imgIndex) {
     addImage,
     removeImage,
     switchImage,
+    reorderImage, // ✅ НОВОЕ: Реордер вкладок
     updateImageNavigation,
     getCurrentImage,
+    getCurrentImageIndex, // ✅ НОВОЕ: Получить текущий индекс
     getAllImages,
     renderImageWithMarkersToDataUrl,
     getAllImagesForExport

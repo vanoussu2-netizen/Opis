@@ -987,33 +987,78 @@ ${CLINIC.disclaimer || 'Имеются противопоказания, нео�
     }
   }
 
+  /**
+   * Получить все изображения с метками для экспорта
+   * ✅ ОБНОВЛЕНО: Использует новый API getAllImagesForExport из uso.canvas.js
+   * который возвращает изображения в порядке вкладок
+   * @returns {Promise<Array>} - Массив изображений с метками
+   */
   async function getAllImagesWithMarkers() {
     DEBUG.log('[USO_EXPORT] getAllImagesWithMarkers started');
-    
+
+    const CANVAS = w.USO_CANVAS;
+
+    // ✅ ОБНОВЛЕНО: Используем новый API getAllImagesForExport
+    if (!CANVAS || typeof CANVAS.getAllImagesForExport !== 'function') {
+      console.error('[USO_EXPORT] CANVAS.getAllImagesForExport not available');
+
+      // Фоллбэк на старый метод
+      if (CANVAS && typeof CANVAS.getAllImages === 'function') {
+        DEBUG.warn('[USO_EXPORT] Falling back to old getAllImages method');
+        return await getAllImagesWithMarkers_Legacy();
+      }
+
+      return [];
+    }
+
+    try {
+      // ✅ Идём по images[] в порядке вкладок; рендерим каждую сцену в PNG
+      const result = await CANVAS.getAllImagesForExport();
+      DEBUG.log('[USO_EXPORT] getAllImagesForExport returned', result.length, 'images');
+
+      // Преобразуем в формат, ожидаемый экспортом
+      return result.map((img, idx) => ({
+        index: idx,
+        imageUrl: img.imageUrl,
+        description: img.description || `Снимок ${idx + 1}`
+      }));
+
+    } catch(err) {
+      console.error('[USO_EXPORT] getAllImagesWithMarkers error:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Legacy метод для совместимости
+   * @returns {Promise<Array>}
+   */
+  async function getAllImagesWithMarkers_Legacy() {
+    DEBUG.log('[USO_EXPORT] Using legacy getAllImagesWithMarkers');
+
     const CANVAS = w.USO_CANVAS;
     if (!CANVAS || typeof CANVAS.getAllImages !== 'function') {
-      console.error('[USO_EXPORT] CANVAS.getAllImages not available');
       return [];
     }
 
     try {
       const allImages = CANVAS.getAllImages();
       DEBUG.log('[USO_EXPORT] Got', allImages.length, 'images');
-      
+
       const result = [];
       const currentImageIndex = CANVAS.getCurrentImageIndex ? CANVAS.getCurrentImageIndex() : 0;
-      
+
       for (let i = 0; i < allImages.length; i++) {
         try {
           DEBUG.log('[USO_EXPORT] Processing image', i + 1, 'of', allImages.length);
-          
+
           if (CANVAS.switchImage) {
-            CANVAS.switchImage(i);
+            await CANVAS.switchImage(i);
             await new Promise(resolve => setTimeout(resolve, 150));
           }
-          
+
           const dataUrl = await renderImageWithMarkersToDataUrl(i);
-          
+
           if (dataUrl) {
             result.push({
               index: i,
@@ -1029,16 +1074,16 @@ ${CLINIC.disclaimer || 'Имеются противопоказания, нео�
           continue;
         }
       }
-      
+
       if (CANVAS.switchImage) {
-        CANVAS.switchImage(currentImageIndex);
+        await CANVAS.switchImage(currentImageIndex);
         await new Promise(resolve => setTimeout(resolve, 100));
       }
-      
-      DEBUG.log('[USO_EXPORT] getAllImagesWithMarkers completed, got', result.length, 'images');
+
+      DEBUG.log('[USO_EXPORT] Legacy method completed, got', result.length, 'images');
       return result;
     } catch(err) {
-      console.error('[USO_EXPORT] getAllImagesWithMarkers error:', err);
+      console.error('[USO_EXPORT] Legacy getAllImagesWithMarkers error:', err);
       return [];
     }
   }
