@@ -1506,7 +1506,7 @@ ${CLINIC.disclaimer || 'Имеются противопоказания, нео�
     }
   }
 
-  w.USO_EXPORT = { 
+  w.USO_EXPORT = {
     exportPDF,
     buildPDFHtml,
     buildPDFBlob,
@@ -1515,7 +1515,6 @@ ${CLINIC.disclaimer || 'Имеются противопоказания, нео�
     exportAsFiles,
     buildSummaryHtml,
     splitPngIntoPages,
-    htmlToText,
     buildTextReport,
     getAllImagesWithMarkers,
     renderImageWithMarkersToDataUrl

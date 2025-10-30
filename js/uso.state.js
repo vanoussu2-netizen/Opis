@@ -90,6 +90,21 @@
     return s.replace(/[\0-\x1F\x7F"\\#.:;$^*+?{}\[\]()|/]/g, '\\$$');
   }
 
+  // ✅ ДОБАВЛЕНО: Функция преобразования HTML в plain text
+  function htmlToText(html){
+    if (!html) return '';
+    const div = document.createElement('div');
+    div.innerHTML = String(html);
+    return div.textContent || div.innerText || '';
+  }
+
+  // ✅ ДОБАВЛЕНО: Функция маскирования телефона
+  function maskPhone(s){
+    const digits = String(s || '').replace(/\D/g, '');
+    if (digits.length <= 6) return '***' + digits;
+    return '***' + digits.slice(-6);
+  }
+
   w.USO = w.USO || {};
   w.USO.__ = __;
   w.USO._x = _x;
@@ -104,14 +119,16 @@
   w.USO.ASSETS = ASSETS;
   w.USO.TEST_MODE = TEST_MODE;
 
-  w.USO.util = { 
-    money, 
-    T, 
-    price, 
-    throttle, 
+  w.USO.util = {
+    money,
+    T,
+    price,
+    throttle,
     cssEscape,
     escapeHTML,      // ✅ Новое
     escapeAttr,      // ✅ Новое
-    sanitizeURL      // ✅ Новое
+    sanitizeURL,     // ✅ Новое
+    htmlToText,      // ✅ ДОБАВЛЕНО
+    maskPhone        // ✅ ДОБАВЛЕНО
   };
 })(window);
