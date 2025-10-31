@@ -21,6 +21,9 @@
   const MODES = U.CanvasConfig.MODES;
   const markerType = U.CanvasConfig.markerType;
   const clamp = U.CanvasConfig.clamp;
+  const swatchColors = U.CanvasConfig.swatchColors;
+  const colorMap = U.CanvasConfig.colorMap;
+  const hexToRgba = U.CanvasConfig.hexToRgba;
 
   // Состояние
   let markingMode = false;
@@ -94,7 +97,7 @@
     mainCanvas.isDrawingMode = (markingMode && currentShape === 'free' && isEditableImage && !midlineMode && !cropping);
 
     if (U.CanvasUI && U.CanvasUI.applyFreeBrush) {
-      U.CanvasUI.applyFreeBrush();
+      U.CanvasUI.applyFreeBrush(mainCanvas, currentColor, swatchColors, mainCanvas.getHeight(), clamp);
     }
 
     mainCanvas.requestRenderAll();
@@ -461,14 +464,7 @@
       // Копируем настройки кисти
       fabricCanvas.freeDrawingBrush = new fabric.PencilBrush(fabricCanvas);
       if (U.CanvasUI && U.CanvasUI.applyFreeBrush) {
-        const applyFreeBrushTo = function(canvas) {
-          const brush = canvas.freeDrawingBrush;
-          if (!brush) return;
-          const colorMap = U.CanvasConfig.colorMap;
-          brush.color = colorMap[currentColor + '_dot'] || '#1565FF';
-          brush.width = U.CanvasUI.brushWidth ? U.CanvasUI.brushWidth() : 3;
-        };
-        applyFreeBrushTo(fabricCanvas);
+        U.CanvasUI.applyFreeBrush(fabricCanvas, currentColor, swatchColors, fabricCanvas.getHeight(), clamp);
       }
 
       DEBUG.log('[USO_INIT] New canvas created:', canvasEl.id);
@@ -552,7 +548,7 @@
     }
 
     if (U.CanvasUI && U.CanvasUI.applyFreeBrush) {
-      U.CanvasUI.applyFreeBrush();
+      U.CanvasUI.applyFreeBrush(mainCanvas, currentColor, swatchColors, mainCanvas.getHeight(), clamp);
     }
 
     mainCanvas.requestRenderAll();
@@ -651,19 +647,19 @@
         $(this).attr('aria-pressed', 'true').addClass('active');
         currentColor = this.getAttribute('data-color') || 'blue';
         if (U.CanvasUI && U.CanvasUI.applyFreeBrush) {
-          U.CanvasUI.applyFreeBrush();
+          U.CanvasUI.applyFreeBrush(mainCanvas, currentColor, swatchColors, mainCanvas.getHeight(), clamp);
         }
         if (U.CanvasUI && U.CanvasUI.updatePaletteBg) {
-          U.CanvasUI.updatePaletteBg();
+          U.CanvasUI.updatePaletteBg(currentColor, swatchColors, hexToRgba);
         }
         if (U.CanvasUI && U.CanvasUI.updateShapeButtonsAvailability) {
-          U.CanvasUI.updateShapeButtonsAvailability();
+          U.CanvasUI.updateShapeButtonsAvailability(currentColor, markerType);
         }
       });
       $('.palette .color-btn[data-color="blue"]').addClass('active').attr('aria-pressed', 'true');
       if (U.CanvasUI) {
-        if (U.CanvasUI.updatePaletteBg) U.CanvasUI.updatePaletteBg();
-        if (U.CanvasUI.updateShapeButtonsAvailability) U.CanvasUI.updateShapeButtonsAvailability();
+        if (U.CanvasUI.updatePaletteBg) U.CanvasUI.updatePaletteBg(currentColor, swatchColors, hexToRgba);
+        if (U.CanvasUI.updateShapeButtonsAvailability) U.CanvasUI.updateShapeButtonsAvailability(currentColor, markerType);
       }
 
       // Привязываем кнопки фигур
@@ -677,7 +673,7 @@
 
         if (currentShape === 'free') {
           if (U.CanvasUI && U.CanvasUI.applyFreeBrush) {
-            U.CanvasUI.applyFreeBrush();
+            U.CanvasUI.applyFreeBrush(mainCanvas, currentColor, swatchColors, mainCanvas.getHeight(), clamp);
           }
           mainCanvas.isDrawingMode = (markingMode && !midlineMode && !cropping);
         } else {
@@ -698,7 +694,7 @@
       });
       syncMarkMode();
       if (U.CanvasUI && U.CanvasUI.applyFreeBrush) {
-        U.CanvasUI.applyFreeBrush();
+        U.CanvasUI.applyFreeBrush(mainCanvas, currentColor, swatchColors, mainCanvas.getHeight(), clamp);
       }
 
       // Привязываем кнопки undo и delete
