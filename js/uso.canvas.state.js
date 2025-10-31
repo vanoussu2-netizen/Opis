@@ -70,16 +70,8 @@
    * @returns {Array} - Массив изображений
    */
   function getAllImages() {
-    return images.map((img, idx) => ({
-      index: idx + 1,
-      description: img.description,
-      jaw: img.jaw,
-      imageUrl: img.imageUrl,
-      serialized: img.serialized,
-      workMode: workMode,
-      canMark: img.canMark,
-      usedInCalculations: img.usedInCalculations || false
-    }));
+    // ✅ Возвращаем фактический массив изображений, а не обёрнутые объекты
+    return images;
   }
 
   /**

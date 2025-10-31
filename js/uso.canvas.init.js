@@ -322,7 +322,7 @@
 
     DEBUG.log('[USO_INIT] Image added:', imgData.description, 'index:', newIndex);
 
-    // Обновляем навигацию
+    // Обновляем навигацию (параметры получит из CanvasState автоматически)
     if (U.CanvasNavigation && U.CanvasNavigation.updateImageNavigation) {
       U.CanvasNavigation.updateImageNavigation();
     }
@@ -384,7 +384,7 @@
       switchImage(newIndex);
     }
 
-    // Обновляем навигацию
+    // Обновляем навигацию (параметры получит из CanvasState автоматически)
     if (U.CanvasNavigation && U.CanvasNavigation.updateImageNavigation) {
       U.CanvasNavigation.updateImageNavigation();
     }
@@ -1096,6 +1096,120 @@
     load
   };
 
-  DEBUG.log('[USO_INIT] Module loaded');
+  // ============================================
+  // АГРЕГИРОВАННЫЙ ЭКСПОРТ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
+  // ============================================
+  // Создаем единый объект USO_CANVAS, который объединяет все модули
+  // для совместимости со старым API uso.app.js и uso.export.js
+
+  w.USO_CANVAS = {
+    // ✅ Из CanvasInit
+    initCanvas,
+    syncMarkMode,
+    canAddMarkers,
+    getMarkersForCurrentImage,
+    rescaleAllMarkers,
+    resetMarkers,
+    updateMarkingButton,
+    addImage,
+    removeImage,
+    switchImage,
+    serialize,
+    load,
+
+    // ✅ Из CanvasState
+    setWorkMode: function(mode) {
+      if (U.CanvasState && U.CanvasState.setWorkMode) {
+        U.CanvasState.setWorkMode(mode);
+      }
+    },
+    getWorkMode: function() {
+      return U.CanvasState && U.CanvasState.getWorkMode ? U.CanvasState.getWorkMode() : 'panoramic';
+    },
+    getAllImages: function() {
+      return U.CanvasState && U.CanvasState.getAllImages ? U.CanvasState.getAllImages() : [];
+    },
+    hasImage: function() {
+      return U.CanvasState && U.CanvasState.hasImage ? U.CanvasState.hasImage() : false;
+    },
+    MODES: U.CanvasConfig ? U.CanvasConfig.MODES : { PANORAMIC: 'panoramic', SIMPLE: 'simple' },
+
+    // ✅ Из CanvasCalculations
+    getCountsForCalculation: function() {
+      if (!U.CanvasCalculations || !U.CanvasState) return {};
+      const images = U.CanvasState.getAllImages ? U.CanvasState.getAllImages() : [];
+      const workMode = U.CanvasState.getWorkMode ? U.CanvasState.getWorkMode() : 'panoramic';
+      return U.CanvasCalculations.getCountsForCalculation(images, workMode);
+    },
+    getJawSplitsForCalculation: function() {
+      if (!U.CanvasCalculations || !U.CanvasState) return {};
+      const images = U.CanvasState.getAllImages ? U.CanvasState.getAllImages() : [];
+      const workMode = U.CanvasState.getWorkMode ? U.CanvasState.getWorkMode() : 'panoramic';
+      const getMidlineY = U.CanvasMidline && U.CanvasMidline.midlineY ? U.CanvasMidline.midlineY : null;
+      return U.CanvasCalculations.getJawSplitsForCalculation(images, workMode, getMidlineY);
+    },
+
+    // ✅ Из CanvasCropping
+    startCrop: function(ratio) {
+      if (U.CanvasCropping && U.CanvasCropping.startCrop) {
+        U.CanvasCropping.startCrop(ratio);
+      }
+    },
+    applyCrop: async function() {
+      if (U.CanvasCropping && U.CanvasCropping.applyCrop) {
+        return await U.CanvasCropping.applyCrop();
+      }
+    },
+    cancelCrop: function() {
+      if (U.CanvasCropping && U.CanvasCropping.cancelCrop) {
+        U.CanvasCropping.cancelCrop();
+      }
+    },
+    setCropRatio: function(ratio) {
+      if (U.CanvasCropping && U.CanvasCropping.setCropRatio) {
+        U.CanvasCropping.setCropRatio(ratio);
+      }
+    },
+
+    // ✅ Из CanvasImages
+    canvasImage: function() {
+      const mainCanvas = U.CanvasState && U.CanvasState.getMainCanvas ? U.CanvasState.getMainCanvas() : null;
+      if (!mainCanvas) return null;
+
+      if (U.CanvasImages && U.CanvasImages.canvasImage) {
+        const img = U.CanvasImages.canvasImage(mainCanvas);
+        return img ? img.getSrc() : null;
+      }
+      return null;
+    },
+
+    // ✅ Из CanvasNavigation
+    getAllImagesForExport: async function() {
+      if (!U.CanvasNavigation || !U.CanvasNavigation.getAllImagesForExport) return [];
+
+      const images = U.CanvasState && U.CanvasState.getAllImages ? U.CanvasState.getAllImages() : [];
+
+      // Функция рендеринга изображения с маркерами
+      const renderImageFn = async function(index) {
+        // Переключаемся на нужное изображение
+        await switchImage(index);
+
+        const mainCanvas = U.CanvasState.getMainCanvas();
+        if (!mainCanvas) return null;
+
+        try {
+          // Рендерим canvas с маркерами в dataURL
+          return mainCanvas.toDataURL({ format: 'png', quality: 1 });
+        } catch(err) {
+          console.error('[USO_CANVAS] Failed to render image', index, err);
+          return null;
+        }
+      };
+
+      return await U.CanvasNavigation.getAllImagesForExport(images, renderImageFn);
+    }
+  };
+
+  DEBUG.log('[USO_INIT] Module loaded, USO_CANVAS exported');
 
 })(window, jQuery);

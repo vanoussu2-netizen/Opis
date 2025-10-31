@@ -14,12 +14,16 @@
 
   /**
    * Обновить навигацию по изображениям (вкладки)
-   * @param {Array} images - Массив изображений
-   * @param {number} activeIndex - Активный индекс
-   * @param {Function} onSwitch - Callback при переключении
-   * @param {Function} onRemove - Callback при удалении
+   * Если параметры не переданы, получает данные из CanvasState
    */
   function updateImageNavigation(images, activeIndex, onSwitch, onRemove) {
+    // ✅ Получаем данные из CanvasState если не переданы
+    if (!images && U.CanvasState) {
+      images = U.CanvasState.getAllImages ? U.CanvasState.getAllImages() : [];
+      activeIndex = U.CanvasState.getCurrentImageIndex ? U.CanvasState.getCurrentImageIndex() : 0;
+      onSwitch = U.CanvasInit && U.CanvasInit.switchImage ? U.CanvasInit.switchImage : null;
+      onRemove = U.CanvasInit && U.CanvasInit.removeImage ? U.CanvasInit.removeImage : null;
+    }
     const nav = document.getElementById('uso-images-nav');
     if (!nav) return;
 
