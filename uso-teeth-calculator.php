@@ -184,7 +184,24 @@ class USO_Teeth_Calc_Plugin {
     wp_register_script('uso-canvas-interactions', plugins_url('js/uso.canvas.interactions.js', __FILE__), ['jquery', 'fabric-js', 'uso-canvas-config'], $ver_js, true);
     wp_register_script('uso-canvas-images', plugins_url('js/uso.canvas.images.js', __FILE__), ['fabric-js', 'uso-canvas-config'], $ver_js, true);
     wp_register_script('uso-canvas-serialization', plugins_url('js/uso.canvas.serialization.js', __FILE__), ['fabric-js', 'uso-canvas-config'], $ver_js, true);
-    wp_register_script('uso-canvas', plugins_url('js/uso.canvas'.$min_js.'.js', __FILE__), ['jquery','fabric-js','exifr','wp-i18n','uso-state','uso-canvas-config','uso-canvas-fullscreen','uso-canvas-ui','uso-canvas-interactions','uso-canvas-images','uso-canvas-serialization'], $ver_js, true);
+
+    // ✅ NEW MODULES: State, Navigation, Calculations
+    wp_register_script('uso-canvas-state', plugins_url('js/uso.canvas.state.js', __FILE__), ['uso-canvas-config'], $ver_js, true);
+    wp_register_script('uso-canvas-navigation', plugins_url('js/uso.canvas.navigation.js', __FILE__), ['jquery', 'uso-canvas-config', 'uso-canvas-state'], $ver_js, true);
+    wp_register_script('uso-canvas-calculations', plugins_url('js/uso.canvas.calculations.js', __FILE__), ['uso-canvas-config'], $ver_js, true);
+
+    // ✅ NEW MODULES: Markers, Midline, Cropping
+    wp_register_script('uso-canvas-markers', plugins_url('js/uso.canvas.markers.js', __FILE__), ['jquery', 'fabric-js', 'uso-canvas-config', 'uso-canvas-ui'], $ver_js, true);
+    wp_register_script('uso-canvas-midline', plugins_url('js/uso.canvas.midline.js', __FILE__), ['jquery', 'fabric-js', 'uso-canvas-config', 'uso-canvas-state'], $ver_js, true);
+    wp_register_script('uso-canvas-cropping', plugins_url('js/uso.canvas.cropping.js', __FILE__), ['jquery', 'fabric-js', 'uso-canvas-config', 'uso-canvas-state', 'uso-canvas-images'], $ver_js, true);
+
+    // ✅ MAIN COORDINATOR: Init module (replaces old uso-canvas.js)
+    wp_register_script('uso-canvas', plugins_url('js/uso.canvas.init.js', __FILE__), [
+        'jquery','fabric-js','exifr','wp-i18n','uso-state',
+        'uso-canvas-config','uso-canvas-fullscreen','uso-canvas-ui','uso-canvas-interactions',
+        'uso-canvas-images','uso-canvas-serialization','uso-canvas-state','uso-canvas-navigation',
+        'uso-canvas-calculations','uso-canvas-markers','uso-canvas-midline','uso-canvas-cropping'
+    ], $ver_js, true);
 
     wp_register_script('uso-calc',   plugins_url('js/uso.calc'.$min_js.'.js', __FILE__),   ['jquery','wp-i18n','uso-state'], $ver_js, true);
     wp_register_script('uso-export', plugins_url('js/uso.export'.$min_js.'.js', __FILE__), ['jquery','html2canvas','jspdf','wp-i18n','uso-state','uso-calc','uso-canvas'], $ver_js, true);
