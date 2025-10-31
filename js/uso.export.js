@@ -674,10 +674,14 @@
         captionCtx.fillRect(0, 0, captionCanvas.width, captionCanvas.height);
         captionCtx.fillStyle = '#2271b1';
         captionCtx.font = 'bold 14px Arial';
-        const marker = (idx + 1) === 1 ? ' ✓' : '';
+
+        // ✅ ОБНОВЛЕНО: Метка для снимков в расчетах
+        const isUsedInCalc = img.usedInCalculations || false;
+        const marker = isUsedInCalc ? ' 📊' : '';
         captionCtx.fillText('Снимок ' + (idx + 1) + marker, margin, 25);
 
-        if ((idx + 1) === 1) {
+        // ✅ ОБНОВЛЕНО: Подпись для снимков в расчетах
+        if (isUsedInCalc) {
           captionCtx.fillStyle = '#666';
           captionCtx.font = '10px Arial';
           captionCtx.fillText('(использован для расчётов)', margin, 38);

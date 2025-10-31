@@ -23,7 +23,8 @@
       markers: [],
       bgImg: null,
       canDraw: true,
-      canMark: false,
+      canMark: true,  // ✅ По умолчанию можно редактировать
+      usedInCalculations: false,  // ✅ Используется ли в расчетах
       serialized: null,
       jaw: null,
       scale: 1,
@@ -291,39 +292,38 @@
     imgData.jaw = jaw;
 
     if (workMode === MODES.PANORAMIC) {
-      // PANORAMIC: canMark = (images.length === 0), canDraw = true
-      imgData.canMark = (images.length === 0);
+      // ✅ PANORAMIC: все снимки можно редактировать, но в расчетах только первый
+      imgData.canMark = true;  // ✅ Все можно редактировать
       imgData.canDraw = true;
+      imgData.usedInCalculations = (images.length === 0);  // ✅ Только первый в расчетах
       imgData.description = description || `Панорамный ${images.length + 1}`;
       if (images.length > 0 && !description) {
         imgData.description += images.length === 1 ? ' (2-й)' : ' (доп.)';
       }
-      DEBUG.log('[USO_CANVAS_IMAGES] PANORAMIC mode - canMark:', imgData.canMark);
+      DEBUG.log('[USO_CANVAS_IMAGES] PANORAMIC mode - usedInCalculations:', imgData.usedInCalculations);
     } else if (workMode === MODES.SIMPLE) {
-      // SIMPLE: первые 2-3 — с canMark = true, далее — только рисование
+      // ✅ SIMPLE: все снимки можно редактировать, но в расчетах только первые два
+      imgData.canMark = true;  // ✅ Все можно редактировать
+      imgData.canDraw = true;
+
       if (images.length === 0) {
-        imgData.canMark = true;
-        imgData.canDraw = true;
         imgData.jaw = jaw || 'upper';
         imgData.description = description || '👆 Верхняя челюсть';
+        imgData.usedInCalculations = true;  // ✅ В расчетах
       } else if (images.length === 1) {
-        imgData.canMark = true;
-        imgData.canDraw = true;
         imgData.jaw = jaw || 'lower';
         imgData.description = description || '👇 Нижняя челюсть';
+        imgData.usedInCalculations = true;  // ✅ В расчетах
       } else if (images.length === 2) {
-        imgData.canMark = true;
-        imgData.canDraw = true;
         imgData.jaw = jaw || null;
         imgData.description = description || '📎 Доп. снимок 1';
+        imgData.usedInCalculations = false;  // ❌ НЕ в расчетах
       } else {
-        // Остальные снимки - только рисование
-        imgData.canMark = false;
-        imgData.canDraw = true;
         imgData.jaw = jaw || null;
         imgData.description = description || `📎 Доп. снимок ${images.length - 1}`;
+        imgData.usedInCalculations = false;  // ❌ НЕ в расчетах
       }
-      DEBUG.log('[USO_CANVAS_IMAGES] SIMPLE mode - canMark:', imgData.canMark);
+      DEBUG.log('[USO_CANVAS_IMAGES] SIMPLE mode - usedInCalculations:', imgData.usedInCalculations);
     }
 
     DEBUG.log('[USO_CANVAS_IMAGES] Image data created:', imgData.description);
