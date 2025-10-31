@@ -585,6 +585,25 @@
         renderOnAddRemove: false
       });
 
+      // ✅ ИСПРАВЛЕНИЕ: Устанавливаем правильное позиционирование для первого canvas
+      const canvasEl = mainCanvas.getElement();
+      if (canvasEl) {
+        canvasEl.style.position = 'absolute';
+        canvasEl.style.top = '0';
+        canvasEl.style.left = '0';
+        canvasEl.style.display = 'block';
+      }
+
+      // ✅ Устанавливаем position: relative для контейнера
+      const container = document.getElementById('uso-canvas-container');
+      if (container) {
+        const computedStyle = window.getComputedStyle(container);
+        if (computedStyle.position === 'static') {
+          container.style.position = 'relative';
+          DEBUG.log('[USO_INIT] Container position set to relative');
+        }
+      }
+
       // Сохраняем в состояние
       U.CanvasState.setMainCanvas(mainCanvas);
       U.CanvasState.setCanvasByIndex(0, mainCanvas);

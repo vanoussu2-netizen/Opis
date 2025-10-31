@@ -205,7 +205,7 @@
         }
 
         if (CANVAS && CANVAS.addImage) {
-          CANVAS.addImage(dataUrl, description, jaw);
+          await CANVAS.addImage(dataUrl, description, jaw);
           DEBUG.log('[USO] Image added to CANVAS:', description);
         } else {
           console.error('[USO] CANVAS.addImage not available');
@@ -220,7 +220,7 @@
         if (allImages.length >= 1) {
           const targetIndex = allImages.length - 1;  // Переключаемся на последний добавленный
           if (CANVAS && CANVAS.switchImage) {
-            CANVAS.switchImage(targetIndex);
+            await CANVAS.switchImage(targetIndex);
             DEBUG.log('[USO] Switched to image:', targetIndex);
           }
         }

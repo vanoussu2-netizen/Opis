@@ -145,12 +145,21 @@
     const canvasEl = document.createElement('canvas');
     canvasEl.id = 'uso-canvas-' + index;
     canvasEl.className = 'uso-image-canvas';
+    // Используем position: absolute для наложения canvas друг на друга
     canvasEl.style.cssText = 'display: none; position: absolute; top: 0; left: 0;';
 
     const container = document.getElementById('uso-canvas-container');
     if (!container) {
       console.error('[USO_NAV] Canvas container not found');
       return null;
+    }
+
+    // ✅ ИСПРАВЛЕНИЕ: Устанавливаем position: relative для контейнера
+    // чтобы canvas элементы позиционировались относительно контейнера
+    const computedStyle = window.getComputedStyle(container);
+    if (computedStyle.position === 'static') {
+      container.style.position = 'relative';
+      DEBUG.log('[USO_NAV] Container position set to relative');
     }
 
     container.appendChild(canvasEl);
